@@ -15,7 +15,7 @@ import { SuggestionList } from '@/components/solver/SuggestionList';
 import { PerformanceStats } from '@/components/solver/PerformanceStats';
 import { GameControls } from '@/components/solver/GameControls';
 import { loadDictionary } from '@/lib/logic/dictionary';
-import { Loader2, Lightbulb } from 'lucide-react';
+import { Loader2, Lightbulb, Github } from 'lucide-react';
 import type { GuessResult } from '@/lib/types';
 
 export default function WordleSolverPage() {
@@ -108,8 +108,9 @@ export default function WordleSolverPage() {
                 href="https://github.com/P4ST4S/next-wordle-bot"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
               >
+                <Github className="w-4 h-4" />
                 GitHub
               </a>
             </div>

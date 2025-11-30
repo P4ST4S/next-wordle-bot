@@ -134,7 +134,7 @@ export default function WordleSolverPage() {
 
             {/* Performance Stats */}
             <PerformanceStats
-              remainingWords={solver.gameState.remainingWords.length}
+              remainingWords={solver.actualRemainingWords}
               calculationTime={solver.calculationTime}
               progress={solver.progress}
               isCalculating={solver.isCalculating}
@@ -161,9 +161,9 @@ export default function WordleSolverPage() {
                       Game Over
                     </p>
                     <p className="text-muted-foreground">
-                      {solver.gameState.remainingWords.length > 0
-                        ? `${solver.gameState.remainingWords.length} possible ${
-                            solver.gameState.remainingWords.length === 1
+                      {solver.actualRemainingWords > 0
+                        ? `${solver.actualRemainingWords} possible ${
+                            solver.actualRemainingWords === 1
                               ? 'word'
                               : 'words'
                           } remaining`

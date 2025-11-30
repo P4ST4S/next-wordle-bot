@@ -27,6 +27,9 @@ export interface UseWordleSolverResult {
   suggestions: WordSuggestion[];
   showingOptimalOpeners: boolean;
 
+  // Actual remaining words count (reflects fallback)
+  actualRemainingWords: number;
+
   // Calculation state
   isCalculating: boolean;
   progress: number;
@@ -98,6 +101,13 @@ export function useWordleSolver(
    * Update suggestions based on current game state
    */
   const updateSuggestions = useCallback(async () => {
+    // Don't calculate if game is won
+    if (gameStateHook.isWon) {
+      setSuggestions([]);
+      setCalculationTime(0);
+      return;
+    }
+
     // If no guesses yet, show optimal openers
     if (showingOptimalOpeners) {
       setSuggestions(OPTIMAL_OPENERS as WordSuggestion[]);
@@ -118,12 +128,32 @@ export function useWordleSolver(
       return;
     }
 
-    // If no words remain or game is over, clear suggestions
+    // If max attempts reached AND won/no words, stop
+    if (gameState.guesses.length >= 6 && gameState.remainingWords.length === 0) {
+      setSuggestions([]);
+      setCalculationTime(0);
+      return;
+    }
+
+    // Skip entropy calculation for very small sets (2-3 words)
     if (
-      gameState.remainingWords.length === 0 ||
-      gameState.isComplete ||
+      gameState.remainingWords.length > 1 &&
       !shouldCalculateEntropy(gameState.remainingWords.length)
     ) {
+      // Just return the remaining words as suggestions
+      setSuggestions(
+        gameState.remainingWords.slice(0, 20).map((word) => ({
+          word,
+          entropy: 0,
+          remainingWords: gameState.remainingWords.length,
+        }))
+      );
+      setCalculationTime(0);
+      return;
+    }
+
+    // If no words remain, clear suggestions
+    if (gameState.remainingWords.length === 0) {
       setSuggestions([]);
       setCalculationTime(0);
       return;
@@ -131,7 +161,7 @@ export function useWordleSolver(
 
     try {
       // Build candidate word list
-      // Strategy: All remaining possible answers + top 100 from allowed guesses
+      // Strategy: All remaining answers + top guesses from allowed list
       const candidates = getCandidateWords(
         gameState.remainingWords,
         allowedGuesses
@@ -156,10 +186,11 @@ export function useWordleSolver(
     }
   }, [
     gameState.remainingWords,
-    gameState.isComplete,
+    gameState.guesses.length,
     showingOptimalOpeners,
     calculateSuggestions,
     allowedGuesses,
+    gameStateHook.isWon,
   ]);
 
   /**
@@ -194,6 +225,26 @@ export function useWordleSolver(
     }
   }, [gameState.guesses, gameState.isComplete, updateSuggestions]);
 
+  /**
+   * Calculate actual remaining words count
+   * This reflects the true number of candidates (including fallback)
+   */
+  const actualRemainingWords = useMemo(() => {
+    // If showing optimal openers, count is irrelevant
+    if (showingOptimalOpeners) {
+      return gameState.remainingWords.length;
+    }
+
+    // If we have suggestions, use the remainingWords from first suggestion
+    // (this reflects the actual candidate pool after fallback)
+    if (suggestions.length > 0 && suggestions[0].remainingWords !== undefined) {
+      return suggestions[0].remainingWords;
+    }
+
+    // Otherwise use the gameState count
+    return gameState.remainingWords.length;
+  }, [suggestions, gameState.remainingWords.length, showingOptimalOpeners]);
+
   return {
     // Game state
     gameState,
@@ -206,6 +257,9 @@ export function useWordleSolver(
     // Suggestions
     suggestions,
     showingOptimalOpeners,
+
+    // Actual remaining words (reflects fallback)
+    actualRemainingWords,
 
     // Calculation state
     isCalculating,

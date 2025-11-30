@@ -45,6 +45,16 @@ export function useGameState(
     createInitialGameState(dictionary)
   );
 
+  // Update remaining words when dictionary loads (if game hasn't started)
+  // This fixes the issue where remaining words is 0 on initial load
+  const [prevDictionaryLength, setPrevDictionaryLength] = useState(dictionary.length);
+  if (dictionary.length !== prevDictionaryLength) {
+    setPrevDictionaryLength(dictionary.length);
+    if (gameState.guesses.length === 0) {
+      setGameState(createInitialGameState(dictionary));
+    }
+  }
+
   /**
    * Add a new guess to the game state
    * Automatically filters remaining words based on clues

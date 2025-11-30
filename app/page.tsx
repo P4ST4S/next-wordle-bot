@@ -14,34 +14,32 @@ import { ClueInput } from '@/components/solver/ClueInput';
 import { SuggestionList } from '@/components/solver/SuggestionList';
 import { PerformanceStats } from '@/components/solver/PerformanceStats';
 import { GameControls } from '@/components/solver/GameControls';
-import { loadDictionaries } from '@/lib/logic/dictionary';
+import { loadDictionary } from '@/lib/logic/dictionary';
 import { Loader2, Lightbulb } from 'lucide-react';
 import type { GuessResult } from '@/lib/types';
 
 export default function WordleSolverPage() {
-  const [possibleAnswers, setPossibleAnswers] = useState<string[]>([]);
-  const [allowedGuesses, setAllowedGuesses] = useState<string[]>([]);
+  const [dictionary, setDictionary] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Load dictionaries on mount
+  // Load dictionary on mount
   useEffect(() => {
     async function loadData() {
       try {
-        const dictionaries = await loadDictionaries();
-        setPossibleAnswers(dictionaries.possibleAnswers);
-        setAllowedGuesses(dictionaries.allowedGuesses);
+        const words = await loadDictionary();
+        setDictionary(words);
         setIsLoading(false);
       } catch (error) {
-        console.error('Failed to load dictionaries:', error);
-        setLoadError('Failed to load word lists. Please refresh the page.');
+        console.error('Failed to load dictionary:', error);
+        setLoadError('Failed to load word list. Please refresh the page.');
         setIsLoading(false);
       }
     }
     loadData();
   }, []);
 
-  const solver = useWordleSolver(possibleAnswers, allowedGuesses);
+  const solver = useWordleSolver(dictionary);
 
   // Handle adding a guess (called from ClueInput or SuggestionList)
   const handleAddGuess = (guess: GuessResult) => {

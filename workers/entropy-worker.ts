@@ -11,6 +11,8 @@ import type {
   WorkerProgress,
   WordSuggestion,
   Pattern,
+  GuessResult,
+  WordConstraints,
 } from '../lib/types';
 
 /**
@@ -104,55 +106,265 @@ function calculateExpectedRemaining(
   return expectedRemaining;
 }
 
+// --- Filtering Logic (Duplicated from lib/logic/word-filtering.ts) ---
+
+function buildConstraints(guesses: GuessResult[]): WordConstraints {
+  const constraints: WordConstraints = {
+    correctPositions: new Map(),
+    presentLetters: new Set(),
+    absentLetters: new Set(),
+    wrongPositions: new Map(),
+    minLetterCount: new Map(),
+  };
+
+  const confirmedLetters = new Set<string>();
+
+  for (const guess of guesses) {
+    for (const clue of guess.clues) {
+      if (clue.clue === 'correct' || clue.clue === 'present') {
+        confirmedLetters.add(clue.letter);
+      }
+    }
+
+    for (const clue of guess.clues) {
+      const letter = clue.letter;
+      switch (clue.clue) {
+        case 'correct':
+          constraints.correctPositions.set(clue.position, letter);
+          updateMinLetterCount(constraints, letter);
+          break;
+        case 'present':
+          constraints.presentLetters.add(letter);
+          addWrongPosition(constraints, letter, clue.position);
+          updateMinLetterCount(constraints, letter);
+          break;
+        case 'absent':
+          if (!confirmedLetters.has(letter)) {
+            constraints.absentLetters.add(letter);
+          }
+          break;
+      }
+    }
+  }
+  return constraints;
+}
+
+function filterWords(words: string[], constraints: WordConstraints): string[] {
+  return words.filter((word) => matchesConstraints(word, constraints));
+}
+
+function matchesConstraints(word: string, constraints: WordConstraints): boolean {
+  const letters = word.split('');
+
+  for (const [pos, letter] of constraints.correctPositions) {
+    if (letters[pos] !== letter) return false;
+  }
+
+  for (const letter of constraints.presentLetters) {
+    if (!word.includes(letter)) return false;
+  }
+
+  for (const letter of constraints.absentLetters) {
+    if (word.includes(letter)) return false;
+  }
+
+  for (const [letter, positions] of constraints.wrongPositions) {
+    for (const pos of positions) {
+      if (letters[pos] === letter) return false;
+    }
+  }
+
+  for (const [letter, minCount] of constraints.minLetterCount) {
+    const actualCount = letters.filter((l) => l === letter).length;
+    if (actualCount < minCount) return false;
+  }
+
+  return true;
+}
+
+function updateMinLetterCount(constraints: WordConstraints, letter: string): void {
+  const current = constraints.minLetterCount.get(letter) || 0;
+  constraints.minLetterCount.set(letter, current + 1);
+}
+
+function addWrongPosition(constraints: WordConstraints, letter: string, position: number): void {
+  if (!constraints.wrongPositions.has(letter)) {
+    constraints.wrongPositions.set(letter, new Set());
+  }
+  constraints.wrongPositions.get(letter)!.add(position);
+}
+
+function getCandidateWords(
+  remainingWords: string[],
+  dictionary: string[]
+): string[] {
+  // If remaining words are few, we can afford to check more openers from the dictionary
+  // to find the best splitter.
+  // If many, just use remaining words to save time.
+  
+  if (remainingWords.length <= 500) {
+     // Mix remaining words with top dictionary words (simple heuristic: just first N for now, 
+     // or we could rely on the fact that the dictionary is sorted or we don't care)
+     // For now, let's just return remainingWords to be safe and fast, 
+     // plus maybe some random ones if we really wanted, but let's stick to remainingWords
+     // as the primary candidates.
+     // Actually, to be "Optimal", we should check the full dictionary, but that's too slow.
+     // Let's return remainingWords + top 100 from dictionary?
+     const candidates = new Set(remainingWords);
+     let added = 0;
+     for (const word of dictionary) {
+        if (added >= 100) break;
+        if (!candidates.has(word)) {
+            candidates.add(word);
+            added++;
+        }
+     }
+     return Array.from(candidates);
+  }
+
+  return remainingWords;
+}
+
+/**
+ * Heuristic: Letter Frequency Score
+ * Used when the candidate set is too large for Entropy
+ */
+function calculateLetterFrequency(words: string[]): Map<string, number> {
+  const freq = new Map<string, number>();
+  for (const word of words) {
+    const uniqueLetters = new Set(word.split(''));
+    for (const letter of uniqueLetters) {
+      freq.set(letter, (freq.get(letter) || 0) + 1);
+    }
+  }
+  return freq;
+}
+
+function scoreWordByFrequency(word: string, freq: Map<string, number>): number {
+  const uniqueLetters = new Set(word.split(''));
+  let score = 0;
+  for (const letter of uniqueLetters) {
+    score += freq.get(letter) || 0;
+  }
+  return score;
+}
+
 /**
  * Main worker message handler
  */
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
-  const { type, candidateWords, remainingWords } = e.data;
+  const data = e.data;
 
-  if (type === 'CALCULATE_ENTROPY') {
-    const startTime = performance.now();
-    const suggestions: WordSuggestion[] = [];
-    const total = candidateWords.length;
-
-    // Calculate entropy for each candidate word
-    for (let i = 0; i < total; i++) {
-      const word = candidateWords[i];
-      const entropy = calculateEntropy(word, remainingWords);
-      const expectedRemaining = calculateExpectedRemaining(word, remainingWords);
-
-      suggestions.push({
-        word,
-        entropy,
-        remainingWords: Math.round(expectedRemaining),
-      });
-
-      // Report progress every 100 words
-      if ((i + 1) % 100 === 0 || i === total - 1) {
-        const progress: WorkerProgress = {
-          type: 'PROGRESS',
-          processed: i + 1,
-          total,
-        };
-        self.postMessage(progress);
-      }
+  if (data.type === 'CALCULATE_ENTROPY') {
+    const { candidateWords, remainingWords } = data;
+    performCalculation(candidateWords, remainingWords);
+  } else if (data.type === 'SOLVE') {
+    const { guesses, dictionary } = data;
+    
+    // 1. Filter words
+    const constraints = buildConstraints(guesses);
+    const remainingWords = filterWords(dictionary, constraints);
+    
+    // 2. Check threshold for Heuristic vs Entropy
+    if (remainingWords.length > 2000) {
+        // HEURISTIC MODE
+        const freq = calculateLetterFrequency(remainingWords);
+        const suggestions: WordSuggestion[] = [];
+        
+        // Score all remaining words (or dictionary? let's use remaining for relevance)
+        // Actually, using the full dictionary for guesses is better for elimination,
+        // but let's stick to remainingWords for speed in this phase.
+        for (const word of remainingWords) {
+            const score = scoreWordByFrequency(word, freq);
+            suggestions.push({
+                word,
+                entropy: score, // Using score as proxy for entropy
+                remainingWords: remainingWords.length // Unknown reduction
+            });
+        }
+        
+        suggestions.sort((a, b) => b.entropy - a.entropy);
+        
+        self.postMessage({
+            type: 'ENTROPY_RESULT',
+            suggestions: suggestions.slice(0, 20),
+            calculationTime: 0
+        } as WorkerResponse);
+        
+    } else {
+        // ENTROPY MODE
+        // Use remaining words as candidates (plus maybe some openers)
+        const candidateWords = getCandidateWords(remainingWords, dictionary);
+        performCalculation(candidateWords, remainingWords);
     }
-
-    // Sort by entropy descending (highest first)
-    suggestions.sort((a, b) => b.entropy - a.entropy);
-
-    const calculationTime = performance.now() - startTime;
-
-    // Send final results
-    const response: WorkerResponse = {
-      type: 'ENTROPY_RESULT',
-      suggestions: suggestions.slice(0, 20), // Return top 20 suggestions
-      calculationTime,
-    };
-
-    self.postMessage(response);
   }
 };
+
+function performCalculation(candidateWords: string[], remainingWords: string[]) {
+  const startTime = performance.now();
+  const suggestions: WordSuggestion[] = [];
+  const total = candidateWords.length;
+
+  // Special case: if only 1 word remains, return it immediately
+  if (remainingWords.length === 1) {
+     self.postMessage({
+      type: 'ENTROPY_RESULT',
+      suggestions: [{
+        word: remainingWords[0],
+        entropy: 0,
+        remainingWords: 1
+      }],
+      calculationTime: 0,
+    } as WorkerResponse);
+    return;
+  }
+  
+  if (remainingWords.length === 0) {
+     self.postMessage({
+      type: 'ENTROPY_RESULT',
+      suggestions: [],
+      calculationTime: 0,
+    } as WorkerResponse);
+    return;
+  }
+
+  // Calculate entropy for each candidate word
+  for (let i = 0; i < total; i++) {
+    const word = candidateWords[i];
+    const entropy = calculateEntropy(word, remainingWords);
+    const expectedRemaining = calculateExpectedRemaining(word, remainingWords);
+
+    suggestions.push({
+      word,
+      entropy,
+      remainingWords: Math.round(expectedRemaining),
+    });
+
+    // Report progress every 100 words
+    if ((i + 1) % 100 === 0 || i === total - 1) {
+      const progress: WorkerProgress = {
+        type: 'PROGRESS',
+        processed: i + 1,
+        total,
+      };
+      self.postMessage(progress);
+    }
+  }
+
+  // Sort by entropy descending (highest first)
+  suggestions.sort((a, b) => b.entropy - a.entropy);
+
+  const calculationTime = performance.now() - startTime;
+
+  // Send final results
+  const response: WorkerResponse = {
+    type: 'ENTROPY_RESULT',
+    suggestions: suggestions.slice(0, 20), // Return top 20 suggestions
+    calculationTime,
+  };
+
+  self.postMessage(response);
+}
 
 // Export empty object to make this a module
 export {};

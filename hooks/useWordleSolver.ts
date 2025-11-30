@@ -11,8 +11,8 @@ import { useState, useCallback, useEffect, useMemo, useTransition } from 'react'
 import { useGameState } from './useGameState';
 import { useWorker } from './useWorker';
 import type { WordSuggestion, GuessResult } from '@/lib/types';
-import { OPTIMAL_OPENERS, PERFORMANCE_TARGETS } from '@/lib/constants';
-import { shouldShowOptimalOpeners, shouldCalculateEntropy } from '@/lib/logic/game-state';
+import { OPTIMAL_OPENERS } from '@/lib/constants';
+import { shouldShowOptimalOpeners } from '@/lib/logic/game-state';
 
 export interface UseWordleSolverResult {
   // Game state
@@ -49,37 +49,18 @@ export interface UseWordleSolverResult {
 /**
  * Main hook for Wordle Solver functionality
  *
- * @param possibleAnswers - List of possible answer words (~2,315)
- * @param allowedGuesses - List of valid guess words (~10,657)
+ * @param dictionary - Complete list of valid words
  * @returns Complete solver interface
- *
- * @example
- * const solver = useWordleSolver(possibleAnswers, allowedGuesses);
- *
- * // Show suggestions
- * useEffect(() => {
- *   solver.updateSuggestions();
- * }, [solver.gameState.guesses]);
- *
- * // Add a guess
- * solver.addGuess(guessResult);
  */
 export function useWordleSolver(
-  possibleAnswers: string[],
-  allowedGuesses: string[]
+  dictionary: string[]
 ): UseWordleSolverResult {
-  // All valid words (union of both dictionaries)
-  const allValidWords = useMemo(() => {
-    const combined = new Set([...possibleAnswers, ...allowedGuesses]);
-    return Array.from(combined);
-  }, [possibleAnswers, allowedGuesses]);
-
   // Game state management
-  const gameStateHook = useGameState(possibleAnswers, allValidWords);
+  const gameStateHook = useGameState(dictionary);
   const { gameState, addGuess: addGuessInternal, reset: resetInternal } = gameStateHook;
 
   // Worker for entropy calculations
-  const { calculateSuggestions, isCalculating, progress, cancelCalculation } =
+  const { solve, isCalculating, progress, cancelCalculation } =
     useWorker();
 
   // Suggestion state
@@ -115,62 +96,19 @@ export function useWordleSolver(
       return;
     }
 
-    // If only 1 word remains, that's the answer
-    if (gameState.remainingWords.length === 1) {
-      setSuggestions([
-        {
-          word: gameState.remainingWords[0],
-          entropy: 0,
-          remainingWords: 1,
-        },
-      ]);
-      setCalculationTime(0);
-      return;
-    }
-
-    // If max attempts reached AND won/no words, stop
-    if (gameState.guesses.length >= 6 && gameState.remainingWords.length === 0) {
-      setSuggestions([]);
-      setCalculationTime(0);
-      return;
-    }
-
-    // Skip entropy calculation for very small sets (2-3 words)
-    if (
-      gameState.remainingWords.length > 1 &&
-      !shouldCalculateEntropy(gameState.remainingWords.length)
-    ) {
-      // Just return the remaining words as suggestions
-      setSuggestions(
-        gameState.remainingWords.slice(0, 20).map((word) => ({
-          word,
-          entropy: 0,
-          remainingWords: gameState.remainingWords.length,
-        }))
-      );
-      setCalculationTime(0);
-      return;
-    }
-
-    // If no words remain, clear suggestions
-    if (gameState.remainingWords.length === 0) {
+    // If max attempts reached, stop
+    if (gameState.guesses.length >= 6) {
       setSuggestions([]);
       setCalculationTime(0);
       return;
     }
 
     try {
-      // Build candidate word list
-      // Strategy: All remaining answers + top guesses from allowed list
-      const candidates = getCandidateWords(
-        gameState.remainingWords,
-        allowedGuesses
-      );
-
-      // Calculate suggestions using Web Worker
-      const result = await calculateSuggestions(
-        candidates,
-        gameState.remainingWords
+      // Use solve to ensure fresh data
+      // This moves the filtering logic to the worker to avoid stale state issues
+      const result = await solve(
+        gameState.guesses,
+        dictionary
       );
 
       setSuggestions(result.suggestions);
@@ -185,11 +123,10 @@ export function useWordleSolver(
       setCalculationTime(0);
     }
   }, [
-    gameState.remainingWords,
-    gameState.guesses.length,
+    gameState.guesses,
     showingOptimalOpeners,
-    calculateSuggestions,
-    allowedGuesses,
+    solve,
+    dictionary,
     gameStateHook.isWon,
   ]);
 
@@ -276,34 +213,4 @@ export function useWordleSolver(
     // UI state
     isPending,
   };
-}
-
-/**
- * Get candidate words for entropy calculation
- * Strategy: All remaining answers + top N from allowed guesses
- */
-function getCandidateWords(
-  remainingAnswers: string[],
-  allowedGuesses: string[],
-  topAllowedCount: number = PERFORMANCE_TARGETS.topAllowedGuesses
-): string[] {
-  // Start with all remaining possible answers
-  const candidates = new Set(remainingAnswers);
-
-  // Add top N from allowed guesses (if not already included)
-  let added = 0;
-  for (const word of allowedGuesses) {
-    if (!candidates.has(word) && added < topAllowedCount) {
-      candidates.add(word);
-      added++;
-    }
-  }
-
-  // Limit total candidates for performance
-  const candidateArray = Array.from(candidates);
-  if (candidateArray.length > PERFORMANCE_TARGETS.maxCandidates) {
-    return candidateArray.slice(0, PERFORMANCE_TARGETS.maxCandidates);
-  }
-
-  return candidateArray;
 }

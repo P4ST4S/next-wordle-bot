@@ -68,11 +68,17 @@ export interface WordConstraints {
 /**
  * Web Worker message types
  */
-export interface WorkerRequest {
-  type: 'CALCULATE_ENTROPY';
-  candidateWords: string[];
-  remainingWords: string[];
-}
+export type WorkerRequest = 
+  | {
+      type: 'CALCULATE_ENTROPY';
+      candidateWords: string[];
+      remainingWords: string[];
+    }
+  | {
+      type: 'SOLVE';
+      guesses: GuessResult[];
+      dictionary: string[];
+    };
 
 export interface WorkerResponse {
   type: 'ENTROPY_RESULT';

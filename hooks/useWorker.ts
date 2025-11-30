@@ -18,6 +18,13 @@ export interface UseWorkerResult {
     suggestions: WordSuggestion[];
     calculationTime: number;
   }>;
+  solve: (
+    guesses: GuessResult[],
+    dictionary: string[]
+  ) => Promise<{
+    suggestions: WordSuggestion[];
+    calculationTime: number;
+  }>;
   isCalculating: boolean;
   progress: number;
   cancelCalculation: () => void;
@@ -169,6 +176,44 @@ export function useWorker(): UseWorkerResult {
   );
 
   /**
+   * Solve using the Web Worker (handles filtering + entropy)
+   */
+  const solve = useCallback(
+    (
+      guesses: GuessResult[],
+      dictionary: string[]
+    ): Promise<{
+      suggestions: WordSuggestion[];
+      calculationTime: number;
+    }> => {
+      return new Promise((resolve, reject) => {
+        if (!workerRef.current) {
+          reject(new Error('Worker not initialized'));
+          return;
+        }
+
+        if (currentCalculationRef.current !== null) {
+          reject(new Error('Calculation already in progress'));
+          return;
+        }
+
+        setIsCalculating(true);
+        setProgress(0);
+        currentCalculationRef.current = { resolve, reject };
+
+        const request: WorkerRequest = {
+          type: 'SOLVE',
+          guesses,
+          dictionary,
+        };
+
+        workerRef.current.postMessage(request);
+      });
+    },
+    []
+  );
+
+  /**
    * Cancel ongoing calculation
    */
   const cancelCalculation = useCallback(() => {
@@ -194,6 +239,7 @@ export function useWorker(): UseWorkerResult {
 
   return {
     calculateSuggestions,
+    solve,
     isCalculating,
     progress,
     cancelCalculation,

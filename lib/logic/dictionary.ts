@@ -1,60 +1,41 @@
 /**
  * Dictionary utilities for loading Wordle word lists
  *
- * Critical Distinction:
- * - POSSIBLE_ANSWERS (~2,315 words): Target list for entropy probability calculations
- * - ALLOWED_GUESSES (~10,657 words): Full valid guess dictionary
+ * Unified Dictionary Architecture:
+ * - Single source of truth containing ALL valid 5-letter words (~14,855 words)
+ * - No distinction between "possible answers" and "allowed guesses"
  */
 
 /**
- * Load the POSSIBLE_ANSWERS list (2,315 common 5-letter words)
- * This is the target set used for entropy probability calculations
+ * Load the Master Dictionary
+ * Merges possible answers and allowed guesses into a single unified list
  *
- * @returns Promise resolving to array of possible answer words
+ * @returns Promise resolving to array of all valid words
  */
-export async function loadPossibleAnswers(): Promise<string[]> {
-  const response = await fetch('/data/possible-answers.json');
-  if (!response.ok) {
-    throw new Error('Failed to load possible answers dictionary');
+export async function loadDictionary(): Promise<string[]> {
+  try {
+    // Load both lists to ensure we have the complete set
+    const [answersRes, guessesRes] = await Promise.all([
+      fetch('/data/possible-answers.json'),
+      fetch('/data/allowed-guesses.json')
+    ]);
+
+    if (!answersRes.ok || !guessesRes.ok) {
+      throw new Error('Failed to load dictionary files');
+    }
+
+    const answers: string[] = await answersRes.json();
+    const guesses: string[] = await guessesRes.json();
+
+    // Merge and deduplicate
+    const masterSet = new Set([...answers, ...guesses]);
+    return Array.from(masterSet).sort();
+  } catch (error) {
+    console.error('Error loading dictionary:', error);
+    throw error;
   }
-  const words: string[] = await response.json();
-  return words;
 }
 
-/**
- * Load the ALLOWED_GUESSES list (10,657 valid 5-letter words)
- * This includes all valid guesses, including obscure words not in answers
- *
- * @returns Promise resolving to array of allowed guess words
- */
-export async function loadAllowedGuesses(): Promise<string[]> {
-  const response = await fetch('/data/allowed-guesses.json');
-  if (!response.ok) {
-    throw new Error('Failed to load allowed guesses dictionary');
-  }
-  const words: string[] = await response.json();
-  return words;
-}
-
-/**
- * Load both dictionaries simultaneously
- *
- * @returns Promise resolving to object with both word lists
- */
-export async function loadDictionaries(): Promise<{
-  possibleAnswers: string[];
-  allowedGuesses: string[];
-}> {
-  const [possibleAnswers, allowedGuesses] = await Promise.all([
-    loadPossibleAnswers(),
-    loadAllowedGuesses(),
-  ]);
-
-  return {
-    possibleAnswers,
-    allowedGuesses,
-  };
-}
 
 /**
  * Check if a word is valid (exists in either dictionary)

@@ -34,26 +34,15 @@ export interface UseGameStateResult {
 /**
  * Hook for managing Wordle game state
  *
- * @param possibleAnswers - Initial list of possible answer words
- * @param allValidWords - Complete list of valid guessable words
+ * @param dictionary - Complete list of valid words
  * @returns Game state and mutation functions
- *
- * @example
- * const { gameState, addGuess, reset, isWon } = useGameState(answers, validWords);
- *
- * // Add a guess
- * addGuess({
- *   word: 'slate',
- *   clues: [...letterClues]
- * });
  */
 export function useGameState(
-  possibleAnswers: string[],
-  allValidWords: string[]
+  dictionary: string[]
 ): UseGameStateResult {
   // Initialize game state
   const [gameState, setGameState] = useState<GameState>(() =>
-    createInitialGameState(possibleAnswers)
+    createInitialGameState(dictionary)
   );
 
   /**
@@ -75,20 +64,17 @@ export function useGameState(
         const constraints = buildConstraints(newGuesses);
 
         // Filter remaining words based on constraints
-        // Try filtering POSSIBLE_ANSWERS first
-        let remaining = filterWords(possibleAnswers, constraints);
-
-        // FALLBACK: If no matches in possible answers, try the full allowed guesses list
-        // This handles cases where the answer is an obscure/newly added word
-        if (remaining.length === 0) {
-          console.warn(
-            'Target word not in standard solution list. Switching to full dictionary.'
-          );
-          remaining = filterWords(allValidWords, constraints);
-        }
+        const remaining = filterWords(dictionary, constraints);
 
         // Check if game is complete
-        const complete = isGameOver(newGuesses) || remaining.length === 0;
+        const isWon = isGameWon(newGuesses);
+        // Game Over Logic:
+        // 1. Won
+        // 2. Lost (6 attempts)
+        // 3. Impossible (0 remaining words AND attempts > 0)
+        const isLost = !isWon && newGuesses.length >= 6;
+        const isImpossible = remaining.length === 0 && newGuesses.length > 0;
+        const complete = isWon || isLost || isImpossible;
 
         // If we solved it, set the solution
         const solution =
@@ -104,24 +90,24 @@ export function useGameState(
         };
       });
     },
-    [possibleAnswers, allValidWords]
+    [dictionary]
   );
 
   /**
    * Reset game to initial state
    */
   const reset = useCallback(() => {
-    setGameState(createInitialGameState(possibleAnswers));
-  }, [possibleAnswers]);
+    setGameState(createInitialGameState(dictionary));
+  }, [dictionary]);
 
   /**
    * Validate a word before guessing
    */
   const validateWord = useCallback(
     (word: string) => {
-      return validateGuess(word, gameState, allValidWords);
+      return validateGuess(word, gameState, dictionary);
     },
-    [gameState, allValidWords]
+    [gameState, dictionary]
   );
 
   // Memoized derived state

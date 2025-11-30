@@ -75,8 +75,17 @@ export function useGameState(
         const constraints = buildConstraints(newGuesses);
 
         // Filter remaining words based on constraints
-        // IMPORTANT: We only filter POSSIBLE_ANSWERS, not ALLOWED_GUESSES
-        const remaining = filterWords(possibleAnswers, constraints);
+        // Try filtering POSSIBLE_ANSWERS first
+        let remaining = filterWords(possibleAnswers, constraints);
+
+        // FALLBACK: If no matches in possible answers, try the full allowed guesses list
+        // This handles cases where the answer is an obscure/newly added word
+        if (remaining.length === 0) {
+          console.warn(
+            'Target word not in standard solution list. Switching to full dictionary.'
+          );
+          remaining = filterWords(allValidWords, constraints);
+        }
 
         // Check if game is complete
         const complete = isGameOver(newGuesses) || remaining.length === 0;
@@ -95,7 +104,7 @@ export function useGameState(
         };
       });
     },
-    [possibleAnswers]
+    [possibleAnswers, allValidWords]
   );
 
   /**

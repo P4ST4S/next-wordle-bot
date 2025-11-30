@@ -118,7 +118,8 @@ export function useWorker(): UseWorkerResult {
           return;
         }
 
-        if (isCalculating) {
+        // Check if calculation is already in progress using ref
+        if (currentCalculationRef.current !== null) {
           reject(new Error('Calculation already in progress'));
           return;
         }
@@ -164,7 +165,7 @@ export function useWorker(): UseWorkerResult {
         workerRef.current.postMessage(request);
       });
     },
-    [isCalculating]
+    []
   );
 
   /**

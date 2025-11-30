@@ -146,6 +146,10 @@ export function useWordleSolver(
       setSuggestions(result.suggestions);
       setCalculationTime(result.calculationTime);
     } catch (error) {
+      // Silently ignore "already calculating" errors
+      if (error instanceof Error && error.message.includes('already in progress')) {
+        return;
+      }
       console.error('Failed to calculate suggestions:', error);
       setSuggestions([]);
       setCalculationTime(0);

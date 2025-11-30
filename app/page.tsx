@@ -118,16 +118,6 @@ export default function WordleSolverPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column: Game Board & Input */}
           <div className="space-y-6">
-            {/* Performance Stats */}
-            <PerformanceStats
-              remainingWords={solver.gameState.remainingWords.length}
-              calculationTime={solver.calculationTime}
-              progress={solver.progress}
-              isCalculating={solver.isCalculating}
-              totalGuesses={solver.gameState.guesses.length}
-              remainingAttempts={solver.remainingAttempts}
-            />
-
             {/* Wordle Board */}
             <WordleBoard guesses={solver.gameState.guesses} />
 
@@ -141,6 +131,16 @@ export default function WordleSolverPage() {
                 />
               </div>
             )}
+
+            {/* Performance Stats */}
+            <PerformanceStats
+              remainingWords={solver.gameState.remainingWords.length}
+              calculationTime={solver.calculationTime}
+              progress={solver.progress}
+              isCalculating={solver.isCalculating}
+              totalGuesses={solver.gameState.guesses.length}
+              remainingAttempts={solver.remainingAttempts}
+            />
 
             {/* Game Over Message */}
             {solver.isOver && (

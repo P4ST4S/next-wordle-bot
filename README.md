@@ -45,8 +45,8 @@ Unlike simple solvers that just filter words, this bot looks ahead to maximize t
 1.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/P4ST4S/wordle-bot.git
-    cd wordle-bot
+    git clone https://github.com/P4ST4S/next-wordle-bot.git
+    cd next-wordle-bot
     ```
 
 2.  **Install dependencies:**

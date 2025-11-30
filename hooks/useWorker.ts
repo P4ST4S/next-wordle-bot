@@ -8,7 +8,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { WorkerRequest, WorkerMessage, WordSuggestion } from '@/lib/types';
+import type { WorkerRequest, WorkerMessage, WordSuggestion, GuessResult } from '@/lib/types';
 
 export interface UseWorkerResult {
   calculateSuggestions: (

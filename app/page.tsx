@@ -105,7 +105,7 @@ export default function WordleSolverPage() {
             </div>
             <div className="flex items-center gap-2">
               <a
-                href="https://github.com/P4ST4S/wordle-bot"
+                href="https://github.com/P4ST4S/next-wordle-bot"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"

@@ -177,6 +177,7 @@ export default function WordleSolverPage() {
           <div>
             <SuggestionList
               suggestions={solver.suggestions}
+              playedWords={solver.gameState.guesses.map((g) => g.word)}
               onSelectWord={handleSelectWord}
               isCalculating={solver.isCalculating}
               showingOptimalOpeners={solver.showingOptimalOpeners}

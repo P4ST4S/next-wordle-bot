@@ -74,6 +74,8 @@ export function useGameState(
         // 3. Impossible (0 remaining words AND attempts > 0)
         const isLost = !isWon && newGuesses.length >= 6;
         const isImpossible = remaining.length === 0 && newGuesses.length > 0;
+        
+        // The UI must ONLY show Game Over if:
         const complete = isWon || isLost || isImpossible;
 
         // If we solved it, set the solution

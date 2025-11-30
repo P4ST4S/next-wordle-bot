@@ -20,47 +20,59 @@ export function buildConstraints(guesses: GuessResult[]): WordConstraints {
     absentLetters: new Set(),
     wrongPositions: new Map(),
     minLetterCount: new Map(),
+    exactLetterCounts: new Map(),
   };
 
-  // Track letters we've seen to handle "absent" clues correctly
-  const confirmedLetters = new Set<string>();
+  // Track min counts per letter across all guesses
+  // The true min count is the MAX of the counts observed in any single guess
+  const maxMinCounts = new Map<string, number>();
 
   for (const guess of guesses) {
-    // First pass: collect all correct and present letters
-    for (const clue of guess.clues) {
-      if (clue.clue === 'correct' || clue.clue === 'present') {
-        confirmedLetters.add(clue.letter);
-      }
-    }
+    const letterCountsInGuess = new Map<string, number>();
+    const absentLettersInGuess = new Set<string>();
 
-    // Second pass: build constraints
+    // First pass: count letters and identify absent ones in this guess
     for (const clue of guess.clues) {
       const letter = clue.letter;
-
-      switch (clue.clue) {
-        case 'correct':
-          // Green: letter is in this exact position
-          constraints.correctPositions.set(clue.position, letter);
-          updateMinLetterCount(constraints, letter);
-          break;
-
-        case 'present':
-          // Yellow: letter is in word but not in this position
-          constraints.presentLetters.add(letter);
-          addWrongPosition(constraints, letter, clue.position);
-          updateMinLetterCount(constraints, letter);
-          break;
-
-        case 'absent':
-          // Gray: letter is not in word (unless we've seen it as green/yellow elsewhere)
-          if (!confirmedLetters.has(letter)) {
-            constraints.absentLetters.add(letter);
-          }
-          // If we've seen this letter before as green/yellow, this gray tells us
-          // the exact count (no more of this letter beyond what we've confirmed)
-          break;
+      if (clue.clue === 'correct' || clue.clue === 'present') {
+        letterCountsInGuess.set(letter, (letterCountsInGuess.get(letter) || 0) + 1);
+        
+        if (clue.clue === 'correct') {
+           constraints.correctPositions.set(clue.position, letter);
+        } else {
+           constraints.presentLetters.add(letter);
+           addWrongPosition(constraints, letter, clue.position);
+        }
+      } else {
+        // absent
+        absentLettersInGuess.add(letter);
       }
     }
+
+    // Update global min counts
+    for (const [letter, count] of letterCountsInGuess) {
+      const currentMax = maxMinCounts.get(letter) || 0;
+      if (count > currentMax) {
+        maxMinCounts.set(letter, count);
+      }
+    }
+
+    // Handle absent letters
+    for (const letter of absentLettersInGuess) {
+      if (letterCountsInGuess.has(letter)) {
+        // If a letter is both present/correct AND absent in the same guess,
+        // we know the EXACT count is the number of present/correct instances.
+        constraints.exactLetterCounts!.set(letter, letterCountsInGuess.get(letter)!);
+      } else {
+        // If it's purely absent (count is 0), it's a truly absent letter
+        constraints.absentLetters.add(letter);
+      }
+    }
+  }
+
+  // Transfer maxMinCounts to constraints.minLetterCount
+  for (const [letter, count] of maxMinCounts) {
+    constraints.minLetterCount.set(letter, count);
   }
 
   return constraints;
@@ -100,56 +112,53 @@ export function matchesConstraints(
     }
   }
 
-  // Check 2: Present letters (yellow clues) - must be in word
+  // Check 2: Present letters (must exist somewhere)
   for (const letter of constraints.presentLetters) {
-    if (!word.includes(letter)) {
-      return false;
-    }
+    if (!word.includes(letter)) return false;
   }
 
-  // Check 3: Absent letters (gray clues) - must not be in word
+  // Check 3: Absent letters
   for (const letter of constraints.absentLetters) {
-    if (word.includes(letter)) {
-      return false;
-    }
+    if (word.includes(letter)) return false;
   }
 
-  // Check 4: Wrong positions (yellow clues) - letter can't be at these positions
+  // Check 4: Wrong positions
   for (const [letter, positions] of constraints.wrongPositions) {
     for (const pos of positions) {
-      if (letters[pos] === letter) {
-        return false;
-      }
+      if (letters[pos] === letter) return false;
     }
   }
 
-  // Check 5: Minimum letter counts (for duplicates)
+  // Check 5: Letter counts
+  const wordLetterCounts = new Map<string, number>();
+  for (const letter of letters) {
+    wordLetterCounts.set(letter, (wordLetterCounts.get(letter) || 0) + 1);
+  }
+
+  // Check Min Counts
   for (const [letter, minCount] of constraints.minLetterCount) {
-    const actualCount = letters.filter((l) => l === letter).length;
-    if (actualCount < minCount) {
-      return false;
+    const count = wordLetterCounts.get(letter) || 0;
+    if (count < minCount) return false;
+  }
+
+  // Check Exact Counts
+  if (constraints.exactLetterCounts) {
+    for (const [letter, exactCount] of constraints.exactLetterCounts) {
+      const count = wordLetterCounts.get(letter) || 0;
+      if (count !== exactCount) return false;
     }
   }
 
   return true;
 }
 
-/**
- * Helper: Update minimum count for a letter
- * Used when we see a green or yellow clue
- */
-function updateMinLetterCount(
-  constraints: WordConstraints,
-  letter: string
-): void {
+function updateMinLetterCount(constraints: WordConstraints, letter: string): void {
+  // Deprecated in favor of per-guess calculation in buildConstraints
+  // Keeping for compatibility if needed, but buildConstraints logic replaces it.
   const current = constraints.minLetterCount.get(letter) || 0;
   constraints.minLetterCount.set(letter, current + 1);
 }
 
-/**
- * Helper: Add a wrong position for a letter
- * Used when we see a yellow clue
- */
 function addWrongPosition(
   constraints: WordConstraints,
   letter: string,
@@ -160,6 +169,8 @@ function addWrongPosition(
   }
   constraints.wrongPositions.get(letter)!.add(position);
 }
+
+
 
 /**
  * Get summary of current constraints (useful for debugging/display)

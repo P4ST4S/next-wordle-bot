@@ -115,37 +115,51 @@ function buildConstraints(guesses: GuessResult[]): WordConstraints {
     absentLetters: new Set(),
     wrongPositions: new Map(),
     minLetterCount: new Map(),
+    exactLetterCounts: new Map(),
   };
 
-  const confirmedLetters = new Set<string>();
+  const maxMinCounts = new Map<string, number>();
 
   for (const guess of guesses) {
-    for (const clue of guess.clues) {
-      if (clue.clue === 'correct' || clue.clue === 'present') {
-        confirmedLetters.add(clue.letter);
-      }
-    }
+    const letterCountsInGuess = new Map<string, number>();
+    const absentLettersInGuess = new Set<string>();
 
     for (const clue of guess.clues) {
       const letter = clue.letter;
-      switch (clue.clue) {
-        case 'correct':
-          constraints.correctPositions.set(clue.position, letter);
-          updateMinLetterCount(constraints, letter);
-          break;
-        case 'present':
-          constraints.presentLetters.add(letter);
-          addWrongPosition(constraints, letter, clue.position);
-          updateMinLetterCount(constraints, letter);
-          break;
-        case 'absent':
-          if (!confirmedLetters.has(letter)) {
-            constraints.absentLetters.add(letter);
-          }
-          break;
+      if (clue.clue === 'correct' || clue.clue === 'present') {
+        letterCountsInGuess.set(letter, (letterCountsInGuess.get(letter) || 0) + 1);
+        
+        if (clue.clue === 'correct') {
+           constraints.correctPositions.set(clue.position, letter);
+        } else {
+           constraints.presentLetters.add(letter);
+           addWrongPosition(constraints, letter, clue.position);
+        }
+      } else {
+        absentLettersInGuess.add(letter);
+      }
+    }
+
+    for (const [letter, count] of letterCountsInGuess) {
+      const currentMax = maxMinCounts.get(letter) || 0;
+      if (count > currentMax) {
+        maxMinCounts.set(letter, count);
+      }
+    }
+
+    for (const letter of absentLettersInGuess) {
+      if (letterCountsInGuess.has(letter)) {
+        constraints.exactLetterCounts!.set(letter, letterCountsInGuess.get(letter)!);
+      } else {
+        constraints.absentLetters.add(letter);
       }
     }
   }
+
+  for (const [letter, count] of maxMinCounts) {
+    constraints.minLetterCount.set(letter, count);
+  }
+
   return constraints;
 }
 
@@ -174,9 +188,21 @@ function matchesConstraints(word: string, constraints: WordConstraints): boolean
     }
   }
 
+  const wordLetterCounts = new Map<string, number>();
+  for (const letter of letters) {
+    wordLetterCounts.set(letter, (wordLetterCounts.get(letter) || 0) + 1);
+  }
+
   for (const [letter, minCount] of constraints.minLetterCount) {
-    const actualCount = letters.filter((l) => l === letter).length;
-    if (actualCount < minCount) return false;
+    const count = wordLetterCounts.get(letter) || 0;
+    if (count < minCount) return false;
+  }
+
+  if (constraints.exactLetterCounts) {
+    for (const [letter, exactCount] of constraints.exactLetterCounts) {
+      const count = wordLetterCounts.get(letter) || 0;
+      if (count !== exactCount) return false;
+    }
   }
 
   return true;

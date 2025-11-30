@@ -157,9 +157,21 @@ export function useWordleSolver(
    * Auto-update suggestions when game state changes
    */
   useEffect(() => {
-    if (!gameState.isComplete) {
-      updateSuggestions();
+    // 1. Guard clause: Do nothing if game over
+    if (gameState.isComplete) {
+      setSuggestions([]);
+      setCalculationTime(0);
+      return;
     }
+
+    // 2. If we have guesses, clear suggestions temporarily to show loading state
+    // But if it's the start (0 guesses), don't clear because we want to show openers immediately
+    if (gameState.guesses.length > 0) {
+      setSuggestions([]);
+    }
+    
+    // 3. Trigger update
+    updateSuggestions();
   }, [gameState.guesses, gameState.isComplete, updateSuggestions]);
 
   /**
@@ -167,6 +179,11 @@ export function useWordleSolver(
    * This reflects the true number of candidates (including fallback)
    */
   const actualRemainingWords = useMemo(() => {
+    // If game is over, rely strictly on gameState to avoid stale suggestion data
+    if (gameState.isComplete) {
+      return gameState.remainingWords.length;
+    }
+
     // If showing optimal openers, count is irrelevant
     if (showingOptimalOpeners) {
       return gameState.remainingWords.length;
@@ -180,7 +197,7 @@ export function useWordleSolver(
 
     // Otherwise use the gameState count
     return gameState.remainingWords.length;
-  }, [suggestions, gameState.remainingWords.length, showingOptimalOpeners]);
+  }, [suggestions, gameState.remainingWords.length, showingOptimalOpeners, gameState.isComplete]);
 
   return {
     // Game state

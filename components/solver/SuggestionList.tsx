@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 
 interface SuggestionListProps {
   suggestions: WordSuggestion[];
+  playedWords?: string[]; // Add playedWords prop
   onSelectWord?: (word: string) => void;
   isCalculating: boolean;
   showingOptimalOpeners?: boolean;
@@ -36,12 +37,18 @@ interface SuggestionListProps {
  */
 export function SuggestionList({
   suggestions,
+  playedWords = [], // Default to empty array
   onSelectWord,
   isCalculating,
   showingOptimalOpeners = false,
   className,
 }: SuggestionListProps) {
   const [expandedCount, setExpandedCount] = useState(10);
+
+  // Filter out words that have already been played
+  const visibleSuggestions = suggestions.filter(
+    (s) => !playedWords.includes(s.word)
+  );
 
   if (isCalculating) {
     return (
@@ -61,7 +68,7 @@ export function SuggestionList({
     );
   }
 
-  if (suggestions.length === 0) {
+  if (visibleSuggestions.length === 0) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -79,8 +86,8 @@ export function SuggestionList({
     );
   }
 
-  const displayedSuggestions = suggestions.slice(0, expandedCount);
-  const hasMore = suggestions.length > expandedCount;
+  const displayedSuggestions = visibleSuggestions.slice(0, expandedCount);
+  const hasMore = visibleSuggestions.length > expandedCount;
 
   return (
     <Card className={className}>
@@ -91,50 +98,62 @@ export function SuggestionList({
             {showingOptimalOpeners ? 'Optimal Opening Moves' : 'Top Suggestions'}
           </div>
           <Badge variant="secondary">
-            {suggestions.length} {suggestions.length === 1 ? 'word' : 'words'}
+            {visibleSuggestions.length} candidates
           </Badge>
         </CardTitle>
-        {showingOptimalOpeners && (
-          <p className="text-sm text-muted-foreground">
-            Pre-computed optimal first guesses for instant results
-          </p>
-        )}
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">#</TableHead>
-                <TableHead>Word</TableHead>
-                <TableHead className="text-right">Entropy</TableHead>
-                <TableHead className="text-right">Avg. Remaining</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Word</TableHead>
+              <TableHead className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  Entropy
+                  <TrendingUp className="w-3 h-3" />
+                </div>
+              </TableHead>
+              <TableHead className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  Remaining
+                  <Hash className="w-3 h-3" />
+                </div>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {displayedSuggestions.map((suggestion) => (
+              <TableRow
+                key={suggestion.word}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => onSelectWord?.(suggestion.word)}
+              >
+                <TableCell className="font-medium font-mono uppercase">
+                  {suggestion.word}
+                </TableCell>
+                <TableCell className="text-right">
+                  {suggestion.entropy.toFixed(2)}
+                </TableCell>
+                <TableCell className="text-right">
+                  {suggestion.remainingWords !== undefined
+                    ? suggestion.remainingWords
+                    : '-'}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayedSuggestions.map((suggestion, index) => (
-                <SuggestionRow
-                  key={suggestion.word}
-                  suggestion={suggestion}
-                  rank={index + 1}
-                  onSelect={onSelectWord}
-                  isTopPick={index === 0}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+            ))}
+          </TableBody>
+        </Table>
 
-        {/* Show More Button */}
         {hasMore && (
-          <Button
-            variant="ghost"
-            className="w-full mt-4"
-            onClick={() => setExpandedCount((prev) => prev + 10)}
-          >
-            Show More ({suggestions.length - expandedCount} remaining)
-          </Button>
+          <div className="mt-4 text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpandedCount((prev) => prev + 10)}
+            >
+              Show More
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

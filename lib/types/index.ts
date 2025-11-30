@@ -63,6 +63,7 @@ export interface WordConstraints {
   absentLetters: Set<string>; // letters not in word
   wrongPositions: Map<string, Set<number>>; // letter -> positions where it can't be
   minLetterCount: Map<string, number>; // Minimum occurrences of a letter
+  exactLetterCounts?: Map<string, number>; // Exact occurrences of a letter (when we have both present/correct AND absent clues)
 }
 
 /**

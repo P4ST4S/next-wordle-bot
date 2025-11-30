@@ -114,21 +114,22 @@ function StatCard({
   value: string;
   variant?: 'default' | 'secondary' | 'success' | 'warning' | 'destructive';
 }) {
+  const variantStyles = {
+    default: 'bg-muted/50',
+    secondary: 'bg-muted/50',
+    success: 'bg-green-500/10 text-green-700 dark:text-green-400',
+    warning: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400',
+    destructive: 'bg-red-500/10 text-red-700 dark:text-red-400',
+  };
+
   return (
-    <div className="flex flex-col gap-1 p-3 rounded-lg bg-muted/50">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div className={`flex flex-col gap-1 p-3 rounded-lg transition-colors ${variantStyles[variant]}`}>
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium uppercase tracking-wider">
         {icon}
         <span>{label}</span>
       </div>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold">{value}</span>
-        {variant !== 'default' && variant !== 'secondary' && (
-          <Badge variant={variant as 'destructive'} className="text-xs">
-            {variant === 'success' && 'Good'}
-            {variant === 'warning' && 'Alert'}
-            {variant === 'destructive' && 'Critical'}
-          </Badge>
-        )}
+        <span className="text-2xl font-bold tabular-nums tracking-tight">{value}</span>
       </div>
     </div>
   );

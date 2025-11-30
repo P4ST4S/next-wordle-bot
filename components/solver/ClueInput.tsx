@@ -129,50 +129,79 @@ export function ClueInput({
       <CardContent>
         <div className="space-y-4">
           {/* Word Input */}
-          <div>
+          <div className="relative">
             <Input
               type="text"
-              placeholder="Enter 5-letter word..."
+              placeholder="TYPE WORD..."
               value={word}
               onChange={handleWordChange}
               onKeyDown={handleKeyDown}
               disabled={disabled}
               maxLength={5}
-              className="uppercase font-mono text-lg"
+              className="uppercase font-mono text-2xl text-center h-14 tracking-widest"
               autoComplete="off"
               spellCheck={false}
             />
+            {word && !disabled && (
+              <button
+                onClick={() => {
+                  setWord('');
+                  setClues(['absent', 'absent', 'absent', 'absent', 'absent']);
+                  setError(null);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+              >
+                <span className="sr-only">Clear</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Clue Selector */}
           {word.length === 5 && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Click each letter to set its clue:
-              </p>
-              <div className="flex gap-2 justify-center">
-                {word.split('').map((letter, index) => (
-                  <ClueButton
-                    key={index}
-                    letter={letter}
-                    clue={clues[index]}
-                    onClick={() => cycleClue(index)}
-                    disabled={disabled}
-                  />
-                ))}
+            <div className="space-y-4 animate-in slide-in-from-top-2 fade-in duration-300">
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Tap letters to change colors
+                </p>
+                <div className="flex gap-1.5 sm:gap-2 justify-center">
+                  {word.split('').map((letter, index) => (
+                    <ClueButton
+                      key={index}
+                      letter={letter}
+                      clue={clues[index]}
+                      onClick={() => cycleClue(index)}
+                      disabled={disabled}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-3 justify-center text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-gray-500 rounded" />
-                  <span>Gray = Absent</span>
+              
+              <div className="flex justify-center gap-4 text-xs font-medium text-muted-foreground bg-muted/50 p-2 rounded-lg">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-gray-500 rounded-sm" />
+                  <span>Absent</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-yellow-500 rounded" />
-                  <span>Yellow = Present</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-yellow-500 rounded-sm" />
+                  <span>Present</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-green-600 rounded" />
-                  <span>Green = Correct</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-green-600 rounded-sm" />
+                  <span>Correct</span>
                 </div>
               </div>
             </div>
@@ -215,9 +244,9 @@ function ClueButton({
   disabled: boolean;
 }) {
   const bgColor = {
-    absent: 'bg-gray-500 dark:bg-gray-600',
-    present: 'bg-yellow-500 dark:bg-yellow-600',
-    correct: 'bg-green-600 dark:bg-green-700',
+    absent: 'bg-gray-500 dark:bg-gray-600 border-gray-600',
+    present: 'bg-yellow-500 dark:bg-yellow-600 border-yellow-600',
+    correct: 'bg-green-600 dark:bg-green-700 border-green-700',
   }[clue];
 
   return (
@@ -226,9 +255,9 @@ function ClueButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'w-12 h-12 rounded font-bold text-white uppercase text-xl',
-        'transition-all duration-200 hover:scale-110 active:scale-95',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
+        'w-12 h-12 sm:w-14 sm:h-14 rounded-md font-bold text-white uppercase text-xl sm:text-2xl shadow-sm border-b-4 active:border-b-0 active:translate-y-1',
+        'transition-all duration-100',
+        'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:border-b-4 disabled:active:translate-y-0',
         bgColor
       )}
     >

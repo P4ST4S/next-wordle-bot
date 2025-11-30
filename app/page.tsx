@@ -85,52 +85,101 @@ export default function WordleSolverPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+    <div className="min-h-screen bg-background flex flex-col font-sans">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-6">
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Lightbulb className="w-8 h-8 text-primary" />
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Lightbulb className="w-6 h-6 text-primary" />
+              </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">
-                  Wordle Solver Bot
+                <h1 className="text-2xl font-bold tracking-tight">
+                  Wordle Solver
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  Shannon Entropy-powered optimal guess suggestions
+                <p className="text-xs text-muted-foreground hidden sm:block">
+                  Shannon Entropy Optimizer
                 </p>
               </div>
             </div>
-            <GameControls
-              onReset={solver.reset}
-              onCancel={solver.cancelCalculation}
-              isCalculating={solver.isCalculating}
-              isGameOver={solver.isOver}
-            />
+            <div className="flex items-center gap-2">
+              <a
+                href="https://github.com/P4ST4S/wordle-bot"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+              >
+                GitHub
+              </a>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Game Board & Input */}
-          <div className="space-y-6">
-            {/* Wordle Board */}
-            <WordleBoard guesses={solver.gameState.guesses} />
-
-            {/* Clue Input */}
-            {!solver.isOver && (
-              <div id="clue-input">
-                <ClueInput
-                  onSubmit={handleAddGuess}
-                  validateWord={solver.validateWord}
-                  disabled={solver.isOver}
-                />
+      <main className="flex-1 container mx-auto px-4 py-8">
+        <div className="grid gap-8 lg:grid-cols-12 items-start max-w-6xl mx-auto">
+          {/* Left Column: Game Board & Controls */}
+          <div className="lg:col-span-7 space-y-8 flex flex-col items-center w-full">
+            <div className="w-full max-w-md space-y-8">
+              <div className="bg-card rounded-xl shadow-sm border p-6 flex justify-center">
+                <WordleBoard guesses={solver.gameState.guesses} />
               </div>
-            )}
+              
+              <GameControls
+                onReset={solver.reset}
+                onCancel={solver.cancelCalculation}
+                isCalculating={solver.isCalculating}
+                isGameOver={solver.isOver}
+                className="w-full justify-center"
+              />
 
-            {/* Performance Stats */}
+              {!solver.isOver && (
+                <div id="clue-input" className="scroll-mt-24">
+                  <ClueInput
+                    onSubmit={handleAddGuess}
+                    validateWord={solver.validateWord}
+                    disabled={solver.isCalculating || solver.isOver}
+                  />
+                </div>
+              )}
+
+              {/* Game Over Message */}
+              {solver.isOver && (
+                <div className="p-6 bg-card border rounded-lg text-center space-y-2 animate-in fade-in zoom-in-95 duration-300">
+                  {solver.isWon ? (
+                    <>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-500">
+                        🎉 Solved!
+                      </p>
+                      <p className="text-muted-foreground">
+                        Solved in {solver.gameState.guesses.length}{' '}
+                        {solver.gameState.guesses.length === 1 ? 'guess' : 'guesses'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-bold text-destructive">
+                        Game Over
+                      </p>
+                      <p className="text-muted-foreground">
+                        {solver.actualRemainingWords > 0
+                          ? `${solver.actualRemainingWords} possible ${
+                              solver.actualRemainingWords === 1
+                                ? 'word'
+                                : 'words'
+                            } remaining`
+                          : 'No possible words found'}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Suggestions & Stats */}
+          <div className="lg:col-span-5 space-y-6 w-full">
             <PerformanceStats
               remainingWords={solver.actualRemainingWords}
               calculationTime={solver.calculationTime}
@@ -139,42 +188,7 @@ export default function WordleSolverPage() {
               totalGuesses={solver.gameState.guesses.length}
               remainingAttempts={solver.remainingAttempts}
             />
-
-            {/* Game Over Message */}
-            {solver.isOver && (
-              <div className="p-6 bg-card border rounded-lg text-center space-y-2">
-                {solver.isWon ? (
-                  <>
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-500">
-                      🎉 Solved!
-                    </p>
-                    <p className="text-muted-foreground">
-                      Solved in {solver.gameState.guesses.length}{' '}
-                      {solver.gameState.guesses.length === 1 ? 'guess' : 'guesses'}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-2xl font-bold text-destructive">
-                      Game Over
-                    </p>
-                    <p className="text-muted-foreground">
-                      {solver.actualRemainingWords > 0
-                        ? `${solver.actualRemainingWords} possible ${
-                            solver.actualRemainingWords === 1
-                              ? 'word'
-                              : 'words'
-                          } remaining`
-                        : 'No possible words found'}
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Suggestions */}
-          <div>
+            
             <SuggestionList
               suggestions={solver.suggestions}
               playedWords={solver.gameState.guesses.map((g) => g.word)}
@@ -182,43 +196,25 @@ export default function WordleSolverPage() {
               isCalculating={solver.isCalculating}
               showingOptimalOpeners={solver.showingOptimalOpeners}
             />
+
+            <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
+              <p className="font-medium mb-2">How it works</p>
+              <p>
+                This solver uses Shannon Entropy to calculate the optimal next guess.
+                For each candidate word, we simulate guessing it against all remaining
+                possible answers to maximize information gain.
+              </p>
+            </div>
           </div>
         </div>
-
-        {/* How It Works Section */}
-        <section className="mt-12 p-6 bg-card border rounded-lg">
-          <h2 className="text-xl font-bold mb-4">How It Works</h2>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              This solver uses <strong>Shannon Entropy</strong> to calculate the
-              optimal next guess. Entropy measures how much information a guess
-              provides on average, considering all possible outcomes.
-            </p>
-            <p>
-              <strong>Algorithm:</strong> For each candidate word, we simulate
-              guessing it against all remaining possible answers, calculate the
-              pattern distribution, and compute the expected information gain
-              using the formula: <code>E[I] = Σ P(p) · log₂(1/P(p))</code>
-            </p>
-            <p>
-              <strong>Performance:</strong> Heavy calculations run in a Web Worker
-              to keep the UI responsive at 60fps. Pre-computed optimal openers
-              provide instant first-guess suggestions.
-            </p>
-            <p>
-              <strong>Tech Stack:</strong> Next.js 16, React 19, TypeScript,
-              Tailwind CSS v4, Shadcn/UI, Web Workers
-            </p>
-          </div>
-        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t mt-12 py-6 text-center text-sm text-muted-foreground">
-        <p>
-          Built with Shannon Entropy algorithm · Powered by Web Workers · Open
-          Source
-        </p>
+      <footer className="border-t py-6 bg-muted/30 mt-auto">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
+          <p>
+            Built with Next.js 16 & Tailwind CSS. Powered by Information Theory.
+          </p>
+        </div>
       </footer>
     </div>
   );

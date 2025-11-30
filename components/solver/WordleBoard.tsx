@@ -24,7 +24,7 @@ export function WordleBoard({ guesses, className }: WordleBoardProps) {
   const rows = Array.from({ length: MAX_GUESSES }, (_, i) => guesses[i] || null);
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
+    <div className={cn('flex flex-col gap-1.5 sm:gap-2', className)}>
       {rows.map((guess, rowIndex) => (
         <WordleRow
           key={rowIndex}
@@ -58,7 +58,7 @@ function WordleRow({
   });
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-1.5 sm:gap-2">
       {cells.map((cell, cellIndex) => (
         <LetterCell
           key={cellIndex}
@@ -91,10 +91,10 @@ function LetterCell({
   return (
     <div
       className={cn(
-        'w-14 h-14 flex items-center justify-center text-2xl font-bold rounded transition-all duration-300',
+        'w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-bold rounded-md transition-all duration-300 select-none',
         colorClasses,
         !isEmpty && 'animate-in zoom-in-50',
-        isEmpty && 'border-2'
+        isEmpty && 'border-2 border-muted-foreground/20 bg-muted/5'
       )}
       style={{
         animationDelay: `${delay}ms`,

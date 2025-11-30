@@ -122,24 +122,14 @@ export function SuggestionList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayedSuggestions.map((suggestion) => (
-              <TableRow
+            {displayedSuggestions.map((suggestion, index) => (
+              <SuggestionRow
                 key={suggestion.word}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => onSelectWord?.(suggestion.word)}
-              >
-                <TableCell className="font-medium font-mono uppercase">
-                  {suggestion.word}
-                </TableCell>
-                <TableCell className="text-right">
-                  {suggestion.entropy.toFixed(2)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {suggestion.remainingWords !== undefined
-                    ? suggestion.remainingWords
-                    : '-'}
-                </TableCell>
-              </TableRow>
+                suggestion={suggestion}
+                rank={index + 1}
+                onSelect={onSelectWord}
+                isTopPick={index === 0}
+              />
             ))}
           </TableBody>
         </Table>
@@ -175,22 +165,25 @@ function SuggestionRow({
   isTopPick: boolean;
 }) {
   return (
-    <TableRow className={cn(isTopPick && 'bg-muted/50')}>
-      {/* Rank */}
-      <TableCell className="font-medium text-muted-foreground">
-        {rank === 1 && <TrendingUp className="w-4 h-4 text-green-600" />}
-        {rank !== 1 && rank}
-      </TableCell>
-
+    <TableRow 
+      className={cn(
+        "group transition-colors",
+        isTopPick ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/50'
+      )}
+      onClick={() => onSelect?.(suggestion.word)}
+    >
       {/* Word */}
       <TableCell>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-lg font-bold uppercase">
+        <div className="flex items-center gap-3">
+          <span className={cn(
+            "font-mono text-lg font-bold uppercase tracking-wider",
+            isTopPick ? "text-primary" : "text-foreground"
+          )}>
             {suggestion.word}
           </span>
           {isTopPick && (
-            <Badge variant="default" className="text-xs">
-              Best
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">
+              BEST
             </Badge>
           )}
         </div>
@@ -199,32 +192,16 @@ function SuggestionRow({
       {/* Entropy Score */}
       <TableCell className="text-right">
         <div className="flex flex-col items-end">
-          <span className="font-semibold">{suggestion.entropy.toFixed(3)}</span>
-          <span className="text-xs text-muted-foreground">bits</span>
+          <span className="font-semibold tabular-nums">{suggestion.entropy.toFixed(2)}</span>
+          <span className="text-[10px] text-muted-foreground">bits</span>
         </div>
       </TableCell>
 
       {/* Expected Remaining */}
       <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-1">
-          <Hash className="w-3 h-3 text-muted-foreground" />
-          <span className="font-medium">
-            {suggestion.remainingWords ?? '—'}
-          </span>
-        </div>
-      </TableCell>
-
-      {/* Action Button */}
-      <TableCell className="text-right">
-        {onSelect && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onSelect(suggestion.word)}
-          >
-            Use
-          </Button>
-        )}
+        <span className="font-medium tabular-nums text-muted-foreground">
+          {suggestion.remainingWords !== undefined ? suggestion.remainingWords.toFixed(1) : '-'}
+        </span>
       </TableCell>
     </TableRow>
   );

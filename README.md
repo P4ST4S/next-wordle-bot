@@ -72,11 +72,7 @@ The solver uses the concept of **Entropy** from Information Theory:
 2.  **Simulate**: For a given candidate guess, it simulates every possible hidden answer remaining in the pool.
 3.  **Pattern Distribution**: It calculates the probability of seeing each color pattern (Green/Yellow/Gray) for that guess.
 4.  **Entropy Calculation**: It computes the Shannon Entropy:
-
-    $$
-    E[I] = \sum_{p} P(p) \cdot \log_2\left(\frac{1}{P(p)}\right)
-    $$
-
+    $$E[I] = \sum_{p} P(p) \cdot \log_2\left(\frac{1}{P(p)}\right)$$
     Where $P(p)$ is the probability of pattern $p$.
 5.  **Rank**: Words with higher entropy provide more information on average, narrowing down the search space faster.
 

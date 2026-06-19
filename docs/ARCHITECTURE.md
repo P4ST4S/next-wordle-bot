@@ -297,7 +297,7 @@ wrong?" Here is every degenerate state and how it is handled.
 | **First move (no guesses yet)** | `guesses.length === 0` | The worker is **not** called; a hard-coded list of strong openers is shown for instant time-to-interactive. |
 | **Contradictory clues → 0 candidates** | worker returns `remainingCount === 0` | The game is marked over (`isImpossible`) and the board shows *"No possible words found"* instead of a suggestion list. |
 | **Exactly one candidate left** | `solve` short-circuits at `remainingCount === 1` | That word is returned immediately with entropy 0 (no scoring pass needed). |
-| **Out of attempts (6 guesses, not solved)** | `isLostByAttempts` derived from `guesses` | Game-over panel; clue input is hidden. |
+| **Out of attempts (6 guesses, not solved)** | `isLostByAttempts` derived from `guesses` | The same derived `isOver` flag (§7) drives the UI: clue input is hidden and the game-over panel shows. No separate game-over state is stored. |
 | **No suggestions to display** | empty list reaches `SuggestionList` | Empty-state card: *"Add a guess to see optimal next words."* |
 | **Worker crashes / fails to init** | `worker.onerror`, or the constructor throws | The pending `solve` promise is **rejected** (`"Worker calculation failed"`), `isCalculating` resets, and the error is logged — the UI is not left stuck in a spinner. |
 | **Stale / superseded request** | generation counter in the worker + `cancelled` flag in the effect cleanup | The late reply is dropped; only the newest guess's result is applied (no flicker from out-of-order responses). |
@@ -310,10 +310,14 @@ Two of these are worth calling out as design choices rather than guards:
   would be ~12,972 guesses × ~4,315 answers — the one genuinely expensive call.
   Shipping a fixed list of strong openers sidesteps it and keeps first paint
   instant.
-- **Out-of-order replies can't corrupt state.** Because the dictionary lives in
-  the worker and requests are cheap, rapid guesses are common; the generation
-  counter guarantees the UI always reflects the *latest* guess, not whichever
-  reply happens to arrive last.
+- **Out-of-order replies can't corrupt state.** Cheap, dictionary-in-the-worker
+  requests make rapid-fire guesses common, but *cheapness is not what protects the
+  state* — it only makes a discarded result inexpensive. What actually prevents a
+  stale reply from overwriting a newer one is the **generation counter** (§2,
+  cancellation): the worker stamps each `SOLVE` with a generation and drops its
+  own result if a newer request has since arrived, and the effect's `cancelled`
+  flag ignores any late reply on the client side. So the UI always reflects the
+  *latest* guess, never whichever reply happens to land last.
 
 ---
 

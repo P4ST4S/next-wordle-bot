@@ -51,5 +51,14 @@ jobs:
         with:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        # Run even if a test failed so the failed-test report is still uploaded.
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          report_type: test_results
+          files: ./test-report.junit.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}

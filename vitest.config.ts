@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['lib/**/*.test.ts'],
+    // Console output for humans + a JUnit XML for Codecov Test Analytics.
+    reporters: ['default', 'junit'],
+    outputFile: { junit: './test-report.junit.xml' },
     coverage: {
       provider: 'v8',
       // The pure solving logic is what the suite covers; scope the report to it

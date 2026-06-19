@@ -1,149 +1,85 @@
 /**
  * Game State Management Hook
  *
- * Manages Wordle game state with pure React hooks
- * Handles guesses, remaining words, and game completion
+ * Tracks the guesses made and derives win/loss state from them. Filtering the
+ * dictionary down to the remaining words is NOT done here — that happens in the
+ * worker (the single source of truth), so the main thread never iterates the
+ * full dictionary on each guess.
  */
 
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import type { GameState, GuessResult } from '@/lib/types';
+import type { GuessResult } from '@/lib/types';
 import {
-  createInitialGameState,
-  isGameOver,
   isGameWon,
   getRemainingAttempts,
-  getGameStatus,
   validateGuess,
 } from '@/lib/logic/game-state';
-import { buildConstraints, filterWords } from '@/lib/logic/word-filtering';
+import { MAX_GUESSES } from '@/lib/constants';
 
 export interface UseGameStateResult {
-  gameState: GameState;
+  guesses: GuessResult[];
   addGuess: (guess: GuessResult) => void;
   reset: () => void;
   isWon: boolean;
-  isLost: boolean;
-  isOver: boolean;
+  isLostByAttempts: boolean;
   remainingAttempts: number;
-  status: string;
-  validateWord: (word: string) => { valid: boolean; error?: string };
+  validateWord: (
+    word: string,
+    isComplete: boolean
+  ) => { valid: boolean; error?: string };
 }
 
 /**
- * Hook for managing Wordle game state
+ * Hook for managing Wordle guesses and win/loss derivation.
  *
- * @param dictionary - Complete list of valid words
- * @returns Game state and mutation functions
+ * @param dictionary - Complete list of valid words (used only for validation)
  */
-export function useGameState(
-  dictionary: string[]
-): UseGameStateResult {
-  // Initialize game state
-  const [gameState, setGameState] = useState<GameState>(() =>
-    createInitialGameState(dictionary)
-  );
-
-  // Update remaining words when dictionary loads (if game hasn't started)
-  // This fixes the issue where remaining words is 0 on initial load
-  const [prevDictionaryLength, setPrevDictionaryLength] = useState(dictionary.length);
-  if (dictionary.length !== prevDictionaryLength) {
-    setPrevDictionaryLength(dictionary.length);
-    if (gameState.guesses.length === 0) {
-      setGameState(createInitialGameState(dictionary));
-    }
-  }
+export function useGameState(dictionary: string[]): UseGameStateResult {
+  const [guesses, setGuesses] = useState<GuessResult[]>([]);
 
   /**
-   * Add a new guess to the game state
-   * Automatically filters remaining words based on clues
+   * Add a new guess. No filtering happens here.
    */
-  const addGuess = useCallback(
-    (guess: GuessResult) => {
-      setGameState((prev) => {
-        // Don't allow guesses if game is already complete
-        if (prev.isComplete) {
-          return prev;
-        }
+  const addGuess = useCallback((guess: GuessResult) => {
+    setGuesses((prev) => {
+      // Stop accepting guesses once the game is won or attempts are exhausted.
+      if (isGameWon(prev) || prev.length >= MAX_GUESSES) {
+        return prev;
+      }
+      return [...prev, guess];
+    });
+  }, []);
 
-        // Add the new guess
-        const newGuesses = [...prev.guesses, guess];
-
-        // Build constraints from all guesses
-        const constraints = buildConstraints(newGuesses);
-
-        // Filter remaining words based on constraints
-        const remaining = filterWords(dictionary, constraints);
-
-        // Check if game is complete
-        const isWon = isGameWon(newGuesses);
-        // Game Over Logic:
-        // 1. Won
-        // 2. Lost (6 attempts)
-        // 3. Impossible (0 remaining words AND attempts > 0)
-        const isLost = !isWon && newGuesses.length >= 6;
-        const isImpossible = remaining.length === 0 && newGuesses.length > 0;
-        
-        // The UI must ONLY show Game Over if:
-        const complete = isWon || isLost || isImpossible;
-
-        // If we solved it, set the solution
-        const solution =
-          remaining.length === 1 ? remaining[0] : prev.solution;
-
-        return {
-          ...prev,
-          guesses: newGuesses,
-          remainingWords: remaining,
-          isComplete: complete,
-          solution,
-          currentGuess: '',
-        };
-      });
-    },
-    [dictionary]
-  );
-
-  /**
-   * Reset game to initial state
-   */
   const reset = useCallback(() => {
-    setGameState(createInitialGameState(dictionary));
-  }, [dictionary]);
+    setGuesses([]);
+  }, []);
 
-  /**
-   * Validate a word before guessing
-   */
   const validateWord = useCallback(
-    (word: string) => {
-      return validateGuess(word, gameState, dictionary);
+    (word: string, isComplete: boolean) => {
+      return validateGuess(word, guesses, dictionary, isComplete);
     },
-    [gameState, dictionary]
+    [guesses, dictionary]
   );
 
-  // Memoized derived state
-  const isWon = useMemo(() => isGameWon(gameState.guesses), [gameState.guesses]);
-  const isLost = useMemo(
-    () => !isWon && gameState.guesses.length >= 6,
-    [isWon, gameState.guesses.length]
+  const isWon = useMemo(() => isGameWon(guesses), [guesses]);
+  const isLostByAttempts = useMemo(
+    () => !isWon && guesses.length >= MAX_GUESSES,
+    [isWon, guesses.length]
   );
-  const isOver = useMemo(() => gameState.isComplete, [gameState.isComplete]);
   const remainingAttempts = useMemo(
-    () => getRemainingAttempts(gameState.guesses),
-    [gameState.guesses]
+    () => getRemainingAttempts(guesses),
+    [guesses]
   );
-  const status = useMemo(() => getGameStatus(gameState), [gameState]);
 
   return {
-    gameState,
+    guesses,
     addGuess,
     reset,
     isWon,
-    isLost,
-    isOver,
+    isLostByAttempts,
     remainingAttempts,
-    status,
     validateWord,
   };
 }

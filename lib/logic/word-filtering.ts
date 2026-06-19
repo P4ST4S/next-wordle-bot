@@ -5,7 +5,7 @@
  * Handles complex edge cases like duplicate letters correctly
  */
 
-import type { GuessResult, WordConstraints, LetterClue } from '../types';
+import type { GuessResult, WordConstraints } from '../types';
 
 /**
  * Build constraints from all previous guesses
@@ -150,13 +150,6 @@ export function matchesConstraints(
   }
 
   return true;
-}
-
-function updateMinLetterCount(constraints: WordConstraints, letter: string): void {
-  // Deprecated in favor of per-guess calculation in buildConstraints
-  // Keeping for compatibility if needed, but buildConstraints logic replaces it.
-  const current = constraints.minLetterCount.get(letter) || 0;
-  constraints.minLetterCount.set(letter, current + 1);
 }
 
 function addWrongPosition(

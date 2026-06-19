@@ -68,22 +68,26 @@ export interface WordConstraints {
 
 /**
  * Web Worker message types
+ *
+ * The dictionary is bundled into the worker, so a SOLVE request only carries
+ * the guesses. CANCEL cooperatively aborts an in-flight calculation.
  */
-export type WorkerRequest = 
-  | {
-      type: 'CALCULATE_ENTROPY';
-      candidateWords: string[];
-      remainingWords: string[];
-    }
+export type WorkerRequest =
   | {
       type: 'SOLVE';
       guesses: GuessResult[];
-      dictionary: string[];
+    }
+  | {
+      type: 'CANCEL';
     };
 
 export interface WorkerResponse {
   type: 'ENTROPY_RESULT';
   suggestions: WordSuggestion[];
+  /** Number of words still consistent with all clues. */
+  remainingCount: number;
+  /** The answer if exactly one word remains, else undefined. */
+  solution?: string;
   calculationTime: number;
 }
 

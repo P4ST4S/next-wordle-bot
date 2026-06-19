@@ -7,37 +7,20 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { useWordleSolver } from '@/hooks/useWordleSolver';
 import { WordleBoard } from '@/components/solver/WordleBoard';
 import { ClueInput } from '@/components/solver/ClueInput';
 import { SuggestionList } from '@/components/solver/SuggestionList';
 import { PerformanceStats } from '@/components/solver/PerformanceStats';
 import { GameControls } from '@/components/solver/GameControls';
-import { loadDictionary } from '@/lib/logic/dictionary';
-import { Loader2, Lightbulb, Github } from 'lucide-react';
+import { buildDictionary } from '@/lib/logic/dictionary';
+import { Lightbulb, Github } from 'lucide-react';
 import type { GuessResult } from '@/lib/types';
 
 export default function WordleSolverPage() {
-  const [dictionary, setDictionary] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  // Load dictionary on mount
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const words = await loadDictionary();
-        setDictionary(words);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Failed to load dictionary:', error);
-        setLoadError('Failed to load word list. Please refresh the page.');
-        setIsLoading(false);
-      }
-    }
-    loadData();
-  }, []);
+  // Bundled at build time — available synchronously, no loading state needed.
+  const dictionary = useMemo(() => buildDictionary(), []);
 
   const solver = useWordleSolver(dictionary);
 
@@ -52,37 +35,6 @@ export default function WordleSolverPage() {
     const clueInput = document.getElementById('clue-input');
     clueInput?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
-
-  // Loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-lg text-muted-foreground">
-            Loading Wordle Solver...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (loadError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="max-w-md text-center space-y-4">
-          <p className="text-lg text-destructive">{loadError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
@@ -124,7 +76,7 @@ export default function WordleSolverPage() {
           <div className="lg:col-span-7 space-y-8 flex flex-col items-center w-full">
             <div className="w-full max-w-md space-y-8">
               <div className="bg-card rounded-xl shadow-sm border p-6 flex justify-center">
-                <WordleBoard guesses={solver.gameState.guesses} />
+                <WordleBoard guesses={solver.guesses} />
               </div>
               
               <GameControls
@@ -154,8 +106,8 @@ export default function WordleSolverPage() {
                         🎉 Solved!
                       </p>
                       <p className="text-muted-foreground">
-                        Solved in {solver.gameState.guesses.length}{' '}
-                        {solver.gameState.guesses.length === 1 ? 'guess' : 'guesses'}
+                        Solved in {solver.guesses.length}{' '}
+                        {solver.guesses.length === 1 ? 'guess' : 'guesses'}
                       </p>
                     </>
                   ) : (
@@ -164,9 +116,9 @@ export default function WordleSolverPage() {
                         Game Over
                       </p>
                       <p className="text-muted-foreground">
-                        {solver.actualRemainingWords > 0
-                          ? `${solver.actualRemainingWords} possible ${
-                              solver.actualRemainingWords === 1
+                        {solver.remainingWords > 0
+                          ? `${solver.remainingWords} possible ${
+                              solver.remainingWords === 1
                                 ? 'word'
                                 : 'words'
                             } remaining`
@@ -182,17 +134,17 @@ export default function WordleSolverPage() {
           {/* Right Column: Suggestions & Stats */}
           <div className="lg:col-span-5 space-y-6 w-full">
             <PerformanceStats
-              remainingWords={solver.actualRemainingWords}
+              remainingWords={solver.remainingWords}
               calculationTime={solver.calculationTime}
               progress={solver.progress}
               isCalculating={solver.isCalculating}
-              totalGuesses={solver.gameState.guesses.length}
+              totalGuesses={solver.guesses.length}
               remainingAttempts={solver.remainingAttempts}
             />
             
             <SuggestionList
               suggestions={solver.suggestions}
-              playedWords={solver.gameState.guesses.map((g) => g.word)}
+              playedWords={solver.guesses.map((g) => g.word)}
               onSelectWord={handleSelectWord}
               isCalculating={solver.isCalculating}
               showingOptimalOpeners={solver.showingOptimalOpeners}

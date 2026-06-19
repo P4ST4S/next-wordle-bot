@@ -14,8 +14,8 @@ const fs = require('fs');
 const path = require('path');
 
 // Paths to dictionary files
-const possibleAnswersPath = path.join(__dirname, '../public/data/possible-answers.json');
-const allowedGuessesPath = path.join(__dirname, '../public/data/allowed-guesses.json');
+const possibleAnswersPath = path.join(__dirname, '../lib/data/possible-answers.json');
+const allowedGuessesPath = path.join(__dirname, '../lib/data/allowed-guesses.json');
 
 // Common letter frequency in English (for scoring word "commonness")
 const letterFrequency = {

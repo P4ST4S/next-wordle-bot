@@ -1,237 +1,202 @@
 /**
- * Shannon Entropy Calculation for Wordle Solver
+ * Shannon Entropy Calculation for the Wordle Solver
  *
  * Formula: E[I] = Σ P(p|w) · log₂(1/P(p|w))
+ *   where P(p|w) is the probability of feedback pattern p given guess w.
+ * Higher entropy = more information gained = better guess.
  *
- * Where:
- * - P(p|w) = Probability of pattern p given guess word w
- * - Sum over all patterns that appear in remaining word set
- *
- * Higher entropy = more information gained = better guess
+ * Performance: words are encoded once into a flat Uint8Array (5 bytes/word,
+ * values 0-25). `scoreGuess` then computes the pattern for every remaining word
+ * in a single pass with no per-call allocation, tallying counts in an
+ * Int32Array(243) instead of a Map.
  */
 
-import { computePattern } from './pattern-matching';
-import type { Pattern, WordSuggestion } from '../types';
+import type { WordSuggestion } from '../types';
+
+const WORD_LEN = 5;
+const PATTERN_COUNT = 243; // 3^5
+const A_CODE = 'a'.charCodeAt(0);
 
 /**
- * Calculate Shannon Entropy for a single guess word
- *
- * @param guess - The word being considered as a guess
- * @param remainingWords - All words that could still be the answer
- * @returns Entropy value (higher is better)
- *
- * @example
- * calculateEntropy('slate', ['slate', 'crate', 'trace'])
- * // Returns ~1.585 (high entropy - good guess)
+ * Encode words into a flat Uint8Array of letter codes (0-25), 5 bytes per word.
+ * Returns the buffer plus the count so callers can index `i*5 .. i*5+5`.
  */
-export function calculateEntropy(
-  guess: string,
-  remainingWords: string[]
-): number {
-  const n = remainingWords.length;
-
-  // Edge case: if only one word remains, entropy is 0
-  if (n <= 1) return 0;
-
-  // Group remaining words by the pattern they would produce
-  const patternCounts = new Map<Pattern, number>();
-
-  for (const actual of remainingWords) {
-    const pattern = computePattern(guess, actual);
-    patternCounts.set(pattern, (patternCounts.get(pattern) || 0) + 1);
+export function encodeWords(words: string[]): Uint8Array {
+  const buf = new Uint8Array(words.length * WORD_LEN);
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const base = i * WORD_LEN;
+    for (let j = 0; j < WORD_LEN; j++) {
+      buf[base + j] = w.charCodeAt(j) - A_CODE;
+    }
   }
+  return buf;
+}
 
-  // Calculate Shannon Entropy
-  // E[I] = Σ P(p) · log₂(1/P(p))
-  // Simplified: E[I] = Σ (count/n) · log₂(n/count)
-  let entropy = 0;
-
-  for (const count of patternCounts.values()) {
-    const probability = count / n;
-    // log₂(1/p) = -log₂(p) = log₂(n) - log₂(count)
-    entropy += probability * Math.log2(1 / probability);
-  }
-
-  return entropy;
+export interface GuessScore {
+  entropy: number;
+  /** Expected number of words remaining after this guess. */
+  expectedRemaining: number;
 }
 
 /**
- * Calculate expected number of remaining words after a guess
+ * Score a single guess against the remaining answer set in one pass.
  *
- * @param guess - The word being considered
- * @param remainingWords - Current remaining words
- * @returns Average number of words expected to remain
+ * @param guessBytes - the guess encoded as 5 letter codes
+ * @param remainingBytes - all remaining answers, flat-encoded (5 bytes each)
+ * @param remainingCount - number of words in `remainingBytes`
+ * @param counts - scratch Int32Array(243); zeroed internally before use
+ */
+export function scoreGuessEncoded(
+  guessBytes: Uint8Array,
+  remainingBytes: Uint8Array,
+  remainingCount: number,
+  counts: Int32Array
+): GuessScore {
+  if (remainingCount <= 1) return { entropy: 0, expectedRemaining: 0 };
+
+  counts.fill(0);
+
+  // Tally how many remaining words produce each of the 243 patterns.
+  for (let r = 0; r < remainingCount; r++) {
+    counts[computePatternEncoded(guessBytes, remainingBytes, r * WORD_LEN)]++;
+  }
+
+  let entropy = 0;
+  let expectedRemaining = 0;
+  for (let p = 0; p < PATTERN_COUNT; p++) {
+    const count = counts[p];
+    if (count === 0) continue;
+    const probability = count / remainingCount;
+    entropy += probability * Math.log2(1 / probability);
+    expectedRemaining += probability * count;
+  }
+
+  return { entropy, expectedRemaining };
+}
+
+/**
+ * Compute the base-3 feedback pattern (0-242) for an encoded guess vs. an
+ * encoded actual word located at `actualOffset` in a flat buffer. No allocation.
+ *
+ * Two-pass duplicate handling, mirroring `computePattern` in pattern-matching.ts:
+ * greens first, then yellows from the leftover letter pool. The pool is tracked
+ * by per-letter counts in a fixed 26-slot scratch reused across the call.
+ */
+const greenScratch = new Uint8Array(WORD_LEN);
+const poolScratch = new Int8Array(26);
+
+function computePatternEncoded(
+  guessBytes: Uint8Array,
+  buffer: Uint8Array,
+  actualOffset: number
+): number {
+  poolScratch.fill(0);
+
+  // First pass: greens, and build the pool of unmatched actual letters.
+  for (let i = 0; i < WORD_LEN; i++) {
+    const g = guessBytes[i];
+    const a = buffer[actualOffset + i];
+    if (g === a) {
+      greenScratch[i] = 1;
+    } else {
+      greenScratch[i] = 0;
+      poolScratch[a]++;
+    }
+  }
+
+  // Second pass: yellows from the leftover pool, else gray.
+  let pattern = 0;
+  let multiplier = 1;
+  for (let i = 0; i < WORD_LEN; i++) {
+    let value: number;
+    if (greenScratch[i] === 1) {
+      value = 2;
+    } else if (poolScratch[guessBytes[i]] > 0) {
+      value = 1;
+      poolScratch[guessBytes[i]]--;
+    } else {
+      value = 0;
+    }
+    pattern += value * multiplier;
+    multiplier *= 3;
+  }
+  return pattern;
+}
+
+/**
+ * Score a guess against a remaining-word set (string API).
+ * Convenience wrapper that encodes inputs; prefer the encoded path in hot loops.
+ */
+export function scoreGuess(guess: string, remainingWords: string[]): GuessScore {
+  const n = remainingWords.length;
+  if (n <= 1) return { entropy: 0, expectedRemaining: 0 };
+  return scoreGuessEncoded(
+    encodeWords([guess]),
+    encodeWords(remainingWords),
+    n,
+    new Int32Array(PATTERN_COUNT)
+  );
+}
+
+/**
+ * Shannon Entropy for a single guess (string API). Thin wrapper over scoreGuess.
+ */
+export function calculateEntropy(guess: string, remainingWords: string[]): number {
+  return scoreGuess(guess, remainingWords).entropy;
+}
+
+/**
+ * Expected number of remaining words after a guess (string API).
  */
 export function calculateExpectedRemaining(
   guess: string,
   remainingWords: string[]
 ): number {
-  const n = remainingWords.length;
-  if (n <= 1) return 0;
-
-  const patternCounts = new Map<Pattern, number>();
-
-  for (const actual of remainingWords) {
-    const pattern = computePattern(guess, actual);
-    patternCounts.set(pattern, (patternCounts.get(pattern) || 0) + 1);
-  }
-
-  // Expected remaining = Σ P(pattern) · remaining_words_for_pattern
-  // For each pattern, the remaining words is just the count for that pattern
-  let expectedRemaining = 0;
-
-  for (const count of patternCounts.values()) {
-    const probability = count / n;
-    expectedRemaining += probability * count;
-  }
-
-  return expectedRemaining;
+  return scoreGuess(guess, remainingWords).expectedRemaining;
 }
 
 /**
- * Rank multiple candidate words by entropy
+ * Rank candidate words by entropy, evaluating each in a single pass over the
+ * remaining set using shared encoded buffers and scratch space.
  *
- * @param candidateWords - Words to evaluate as potential guesses
- * @param remainingWords - Words that could still be the answer
- * @returns Sorted array of suggestions (highest entropy first)
+ * @param onProgress - optional callback invoked every 100 candidates
  */
-export function rankWordsByEntropy(
+export function rankByEntropyEncoded(
   candidateWords: string[],
-  remainingWords: string[]
+  remainingWords: string[],
+  onProgress?: (processed: number, total: number) => void
 ): WordSuggestion[] {
+  const remainingBytes = encodeWords(remainingWords);
+  const remainingCount = remainingWords.length;
+  const counts = new Int32Array(PATTERN_COUNT);
+  const guessBytes = new Uint8Array(WORD_LEN);
+
   const suggestions: WordSuggestion[] = [];
+  const total = candidateWords.length;
 
-  for (const word of candidateWords) {
-    const entropy = calculateEntropy(word, remainingWords);
-    const expectedRemaining = calculateExpectedRemaining(word, remainingWords);
-
+  for (let i = 0; i < total; i++) {
+    const word = candidateWords[i];
+    for (let j = 0; j < WORD_LEN; j++) {
+      guessBytes[j] = word.charCodeAt(j) - A_CODE;
+    }
+    const { entropy, expectedRemaining } = scoreGuessEncoded(
+      guessBytes,
+      remainingBytes,
+      remainingCount,
+      counts
+    );
     suggestions.push({
       word,
       entropy,
       remainingWords: Math.round(expectedRemaining),
     });
-  }
 
-  // Sort by entropy descending (highest first)
-  return suggestions.sort((a, b) => b.entropy - a.entropy);
-}
-
-/**
- * Get the best guess from a set of candidates
- *
- * @param candidateWords - Words to evaluate
- * @param remainingWords - Words that could still be the answer
- * @returns The word with highest entropy
- */
-export function getBestGuess(
-  candidateWords: string[],
-  remainingWords: string[]
-): string | null {
-  if (candidateWords.length === 0) return null;
-  if (remainingWords.length === 1) return remainingWords[0];
-
-  let bestWord = candidateWords[0];
-  let bestEntropy = -1;
-
-  for (const word of candidateWords) {
-    const entropy = calculateEntropy(word, remainingWords);
-    if (entropy > bestEntropy) {
-      bestEntropy = entropy;
-      bestWord = word;
+    if (onProgress && ((i + 1) % 100 === 0 || i === total - 1)) {
+      onProgress(i + 1, total);
     }
   }
 
-  return bestWord;
-}
-
-/**
- * Calculate information gain percentage
- * Shows how much uncertainty is reduced by a guess
- *
- * @param entropy - Entropy value for a guess
- * @param remainingWords - Current remaining words count
- * @returns Percentage of maximum possible information (0-100)
- */
-export function calculateInformationGain(
-  entropy: number,
-  remainingWords: number
-): number {
-  if (remainingWords <= 1) return 100;
-
-  // Maximum possible entropy is log₂(n) where n is remaining words
-  const maxEntropy = Math.log2(remainingWords);
-
-  // Information gain as percentage
-  return (entropy / maxEntropy) * 100;
-}
-
-/**
- * Get pattern distribution for a guess (useful for analysis)
- *
- * @param guess - The guess word
- * @param remainingWords - Possible answer words
- * @returns Map of pattern to count and percentage
- */
-export function getPatternDistribution(
-  guess: string,
-  remainingWords: string[]
-): Map<
-  Pattern,
-  {
-    count: number;
-    percentage: number;
-    sampleWords: string[];
-  }
-> {
-  const distribution = new Map<
-    Pattern,
-    {
-      count: number;
-      percentage: number;
-      sampleWords: string[];
-    }
-  >();
-
-  const n = remainingWords.length;
-  const patternToWords = new Map<Pattern, string[]>();
-
-  // Group words by pattern
-  for (const actual of remainingWords) {
-    const pattern = computePattern(guess, actual);
-    if (!patternToWords.has(pattern)) {
-      patternToWords.set(pattern, []);
-    }
-    patternToWords.get(pattern)!.push(actual);
-  }
-
-  // Build distribution with sample words
-  for (const [pattern, words] of patternToWords) {
-    distribution.set(pattern, {
-      count: words.length,
-      percentage: (words.length / n) * 100,
-      sampleWords: words.slice(0, 5), // Show up to 5 examples
-    });
-  }
-
-  return distribution;
-}
-
-/**
- * Compare two guesses and return which is better
- *
- * @param guess1 - First guess word
- * @param guess2 - Second guess word
- * @param remainingWords - Possible answer words
- * @returns 1 if guess1 is better, -1 if guess2 is better, 0 if equal
- */
-export function compareGuesses(
-  guess1: string,
-  guess2: string,
-  remainingWords: string[]
-): number {
-  const entropy1 = calculateEntropy(guess1, remainingWords);
-  const entropy2 = calculateEntropy(guess2, remainingWords);
-
-  if (Math.abs(entropy1 - entropy2) < 0.001) return 0; // Nearly equal
-  return entropy1 > entropy2 ? 1 : -1;
+  suggestions.sort((a, b) => b.entropy - a.entropy);
+  return suggestions;
 }

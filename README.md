@@ -85,11 +85,15 @@ The solver uses the concept of **Entropy** from Information Theory:
 │   └── ui/             # Reusable UI components (Buttons, Cards, etc.)
 ├── hooks/              # Custom React hooks (Game state, Worker management)
 ├── lib/                # Utilities and core logic
-│   ├── logic/          # Entropy calculation and game rules
+│   ├── logic/          # Solver pipeline, entropy, filtering (+ *.test.ts)
+│   ├── data/           # Bundled word lists (imported, not fetched)
 │   └── types/          # TypeScript definitions
-├── public/             # Static assets and data files
-└── workers/            # Web Workers for background processing
+└── workers/            # Web Worker running the shared solver logic
 ```
+
+> The solving logic lives in `lib/logic/solver.ts` and is imported by both the
+> Web Worker and the test suite — there is no duplicated logic between threads.
+> Run the tests with `pnpm test`.
 
 ## 🤝 Contributing
 

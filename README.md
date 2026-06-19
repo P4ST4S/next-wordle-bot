@@ -7,11 +7,12 @@
 > Built with Next.js 16, React 19 and a Web Worker so the UI stays at 60 fps while
 > thousands of words are scored.
 
+[![CI](https://github.com/P4ST4S/next-wordle-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/P4ST4S/next-wordle-bot/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/P4ST4S/next-wordle-bot/branch/main/graph/badge.svg)](https://codecov.io/gh/P4ST4S/next-wordle-bot)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-16.0-black)
 ![React](https://img.shields.io/badge/React-19.2-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
-![Tests](https://img.shields.io/badge/tests-Vitest-6E9F18)
 
 ## 📖 About
 

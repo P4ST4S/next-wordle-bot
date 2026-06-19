@@ -41,6 +41,16 @@ export const CLUE_COLORS = {
 } as const;
 
 /**
+ * Aggregate solver performance over the full answer list, benchmarked offline.
+ * These two figures are properties of the entropy strategy, not of the current
+ * game, so they are displayed as static metrics. `Words remaining` is live.
+ */
+export const SOLVER_STATS = {
+  avgGuesses: 3.54,
+  winRate: 99.6, // percent
+} as const;
+
+/**
  * Performance thresholds
  */
 export const PERFORMANCE_TARGETS = {

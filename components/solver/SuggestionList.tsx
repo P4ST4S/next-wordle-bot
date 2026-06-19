@@ -1,208 +1,139 @@
 /**
- * Suggestion List Component
+ * Suggestion list — "Optimal Opening Moves" card.
  *
- * Displays ranked word suggestions with entropy scores
- * Uses Shadcn/UI Table, Badge, and Button components
+ * Ranks candidate words by Shannon entropy (bits of information gained). Styled
+ * per the design handoff: a card with a caption and up to 10 candidate rows,
+ * each showing rank · word · entropy. An optional faint entropy bar can be
+ * rendered behind each row.
  */
 
 'use client';
 
-import { useState } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo } from 'react';
 import type { WordSuggestion } from '@/lib/types';
-import { Lightbulb, TrendingUp, Hash, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SuggestionListProps {
   suggestions: WordSuggestion[];
-  playedWords?: string[]; // Add playedWords prop
-  onSelectWord?: (word: string) => void;
+  playedWords?: string[];
   isCalculating: boolean;
   showingOptimalOpeners?: boolean;
+  /** Render a faint entropy bar behind each row (design `showEntropyBars`). */
+  showEntropyBars?: boolean;
   className?: string;
 }
 
-/**
- * Main suggestion list component
- */
+const MAX_ROWS = 10;
+
 export function SuggestionList({
   suggestions,
-  playedWords = [], // Default to empty array
-  onSelectWord,
+  playedWords = [],
   isCalculating,
   showingOptimalOpeners = false,
+  showEntropyBars = false,
   className,
 }: SuggestionListProps) {
-  const [expandedCount, setExpandedCount] = useState(10);
-
-  // Filter out words that have already been played
-  const visibleSuggestions = suggestions.filter(
-    (s) => !playedWords.includes(s.word)
+  const visible = useMemo(
+    () =>
+      suggestions
+        .filter((s) => !playedWords.includes(s.word))
+        .slice(0, MAX_ROWS),
+    [suggestions, playedWords]
   );
 
-  if (isCalculating) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Calculating Suggestions...
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Analyzing word patterns using Shannon Entropy...
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (visibleSuggestions.length === 0) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="w-5 h-5" />
-            Word Suggestions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No suggestions available. Add a guess to see optimal next words.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const displayedSuggestions = visibleSuggestions.slice(0, expandedCount);
-  const hasMore = visibleSuggestions.length > expandedCount;
+  // Relative bar width is scaled against the visible entropy range.
+  const { minEntropy, maxEntropy } = useMemo(() => {
+    if (visible.length === 0) return { minEntropy: 0, maxEntropy: 1 };
+    const values = visible.map((s) => s.entropy);
+    return { minEntropy: Math.min(...values), maxEntropy: Math.max(...values) };
+  }, [visible]);
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Lightbulb className="w-5 h-5" />
-            {showingOptimalOpeners ? 'Optimal Opening Moves' : 'Top Suggestions'}
-          </div>
-          <Badge variant="secondary">
-            {visibleSuggestions.length} candidates
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Word</TableHead>
-              <TableHead className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  Entropy
-                  <TrendingUp className="w-3 h-3" />
-                </div>
-              </TableHead>
-              <TableHead className="text-right">
-                <div className="flex items-center justify-end gap-1">
-                  Remaining
-                  <Hash className="w-3 h-3" />
-                </div>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {displayedSuggestions.map((suggestion, index) => (
-              <SuggestionRow
-                key={suggestion.word}
-                suggestion={suggestion}
-                rank={index + 1}
-                onSelect={onSelectWord}
-                isTopPick={index === 0}
-              />
-            ))}
-          </TableBody>
-        </Table>
+    <section className="rounded-2xl border border-border p-6">
+      <h2 className="text-[17px] font-extrabold tracking-[-0.3px] text-ink">
+        {showingOptimalOpeners ? 'Optimal Opening Moves' : 'Top Suggestions'}
+      </h2>
+      <p className="mb-5 mt-[7px] text-[13.5px] leading-[1.5] text-ink-muted">
+        Ranked by expected information gain — each candidate is simulated against
+        all remaining answers to maximize the bits of entropy resolved.
+      </p>
 
-        {hasMore && (
-          <div className="mt-4 text-center">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setExpandedCount((prev) => prev + 10)}
-            >
-              Show More
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {isCalculating ? (
+        <CalculatingRows />
+      ) : visible.length === 0 ? (
+        <p className="text-[13.5px] text-ink-muted">
+          No suggestions available. Add a guess to see optimal next words.
+        </p>
+      ) : (
+        <div className={cn('flex flex-col gap-[7px]', className)}>
+          {visible.map((suggestion, index) => (
+            <CandidateRow
+              key={suggestion.word}
+              rank={index + 1}
+              suggestion={suggestion}
+              barWidth={
+                showEntropyBars
+                  ? barPercent(suggestion.entropy, minEntropy, maxEntropy)
+                  : null
+              }
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
-/**
- * Individual suggestion row
- */
-function SuggestionRow({
-  suggestion,
+function CandidateRow({
   rank,
-  onSelect,
-  isTopPick,
+  suggestion,
+  barWidth,
 }: {
-  suggestion: WordSuggestion;
   rank: number;
-  onSelect?: (word: string) => void;
-  isTopPick: boolean;
+  suggestion: WordSuggestion;
+  barWidth: string | null;
 }) {
   return (
-    <TableRow 
-      className={cn(
-        "group transition-colors",
-        isTopPick ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/50'
+    <div className="relative flex items-center gap-[15px] overflow-hidden rounded-[10px] bg-surface-row px-[15px] py-[11px]">
+      {barWidth !== null && (
+        <div
+          aria-hidden
+          className="absolute inset-y-0 left-0 bg-wordle-correct/[0.13]"
+          style={{ width: barWidth }}
+        />
       )}
-      onClick={() => onSelect?.(suggestion.word)}
-    >
-      {/* Word */}
-      <TableCell>
-        <div className="flex items-center gap-3">
-          <span className={cn(
-            "font-mono text-lg font-bold uppercase tracking-wider",
-            isTopPick ? "text-primary" : "text-foreground"
-          )}>
-            {suggestion.word}
-          </span>
-          {isTopPick && (
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">
-              BEST
-            </Badge>
-          )}
-        </div>
-      </TableCell>
-
-      {/* Entropy Score */}
-      <TableCell className="text-right">
-        <div className="flex flex-col items-end">
-          <span className="font-semibold tabular-nums">{suggestion.entropy.toFixed(2)}</span>
-          <span className="text-[10px] text-muted-foreground">bits</span>
-        </div>
-      </TableCell>
-
-      {/* Expected Remaining */}
-      <TableCell className="text-right">
-        <span className="font-medium tabular-nums text-muted-foreground">
-          {suggestion.remainingWords !== undefined ? suggestion.remainingWords.toFixed(1) : '-'}
+      <span className="relative w-4.5 text-center text-[13px] font-bold text-ink-faint">
+        {rank}
+      </span>
+      <span className="relative text-[18px] font-bold uppercase tracking-[3px] text-ink">
+        {suggestion.word}
+      </span>
+      <span className="relative ml-auto text-[14px] font-bold tabular-nums text-wordle-correct">
+        {suggestion.entropy.toFixed(2)}
+        <span className="ml-[3px] text-[11px] font-semibold text-wordle-correct/60">
+          bits
         </span>
-      </TableCell>
-    </TableRow>
+      </span>
+    </div>
   );
+}
+
+function CalculatingRows() {
+  return (
+    <div className="flex flex-col gap-[7px]" aria-busy="true">
+      {Array.from({ length: 5 }, (_, i) => (
+        <div
+          key={i}
+          className="h-11 animate-pulse rounded-[10px] bg-surface-row"
+        />
+      ))}
+    </div>
+  );
+}
+
+/** Map an entropy value to a 10%–100% relative bar width. */
+function barPercent(value: number, min: number, max: number): string {
+  if (max <= min) return '100%';
+  const ratio = (value - min) / (max - min);
+  return `${Math.round((0.1 + 0.9 * ratio) * 100)}%`;
 }

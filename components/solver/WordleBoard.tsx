@@ -1,122 +1,94 @@
 /**
  * Wordle Board Component
  *
- * Visual 6x5 grid showing guess history with color-coded feedback
- * Uses Tailwind CSS for styling with smooth animations
+ * Fixed 6×5 grid of the committed guesses. Per the design handoff, filled tiles
+ * are clickable and cycle their clue color; empty rows are inert placeholders.
  */
 
 'use client';
 
-import type { GuessResult, ClueType } from '@/lib/types';
+import type { ClueType, GuessResult } from '@/lib/types';
 import { MAX_GUESSES, WORD_LENGTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { TILE_BASE, tileClasses } from './tile-styles';
 
 interface WordleBoardProps {
   guesses: GuessResult[];
+  /** Cycle the clue color of a committed tile. Omit to render read-only. */
+  onCycleClue?: (guessIndex: number, tileIndex: number) => void;
   className?: string;
 }
 
-/**
- * Main board component displaying all guesses
- */
-export function WordleBoard({ guesses, className }: WordleBoardProps) {
-  // Create array of 6 rows (max guesses)
-  const rows = Array.from({ length: MAX_GUESSES }, (_, i) => guesses[i] || null);
+export function WordleBoard({
+  guesses,
+  onCycleClue,
+  className,
+}: WordleBoardProps) {
+  const rows = Array.from(
+    { length: MAX_GUESSES },
+    (_, i) => guesses[i] ?? null
+  );
 
   return (
-    <div className={cn('flex flex-col gap-1.5 sm:gap-2', className)}>
+    <div className={cn('flex flex-col gap-1.5', className)}>
       {rows.map((guess, rowIndex) => (
-        <WordleRow
-          key={rowIndex}
-          guess={guess}
-          rowIndex={rowIndex}
-          isActive={rowIndex === guesses.length}
-        />
+        <div key={rowIndex} className="flex gap-1.5">
+          {Array.from({ length: WORD_LENGTH }, (_, tileIndex) => {
+            const clue = guess?.clues[tileIndex];
+            return (
+              <Tile
+                key={tileIndex}
+                letter={clue?.letter ?? ''}
+                state={clue?.clue ?? 'empty'}
+                onClick={
+                  guess && onCycleClue
+                    ? () => onCycleClue(rowIndex, tileIndex)
+                    : undefined
+                }
+              />
+            );
+          })}
+        </div>
       ))}
     </div>
   );
 }
 
-/**
- * Single row of 5 letter cells
- */
-function WordleRow({
-  guess,
-  rowIndex,
-  isActive,
-}: {
-  guess: GuessResult | null;
-  rowIndex: number;
-  isActive: boolean;
-}) {
-  const cells = Array.from({ length: WORD_LENGTH }, (_, i) => {
-    if (!guess) return { letter: '', clue: undefined };
-    return {
-      letter: guess.clues[i]?.letter || '',
-      clue: guess.clues[i]?.clue,
-    };
-  });
-
-  return (
-    <div className="flex gap-1.5 sm:gap-2">
-      {cells.map((cell, cellIndex) => (
-        <LetterCell
-          key={cellIndex}
-          letter={cell.letter}
-          clue={cell.clue}
-          delay={cellIndex * 100}
-          isEmpty={!guess}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * Individual letter cell with color-coded background
- */
-function LetterCell({
+function Tile({
   letter,
-  clue,
-  delay,
-  isEmpty,
+  state,
+  onClick,
 }: {
   letter: string;
-  clue?: ClueType;
-  delay: number;
-  isEmpty: boolean;
+  state: ClueType | 'empty';
+  onClick?: () => void;
 }) {
-  const colorClasses = getColorClasses(clue);
+  const interactive = Boolean(onClick);
 
   return (
     <div
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
       className={cn(
-        'w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-bold rounded-md transition-all duration-300 select-none',
-        colorClasses,
-        !isEmpty && 'animate-in zoom-in-50',
-        isEmpty && 'border-2 border-muted-foreground/20 bg-muted/5'
+        TILE_BASE,
+        tileClasses(state),
+        interactive ? 'cursor-pointer' : 'cursor-default',
+        interactive &&
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-wordle-correct'
       )}
-      style={{
-        animationDelay: `${delay}ms`,
-      }}
     >
-      <span className="uppercase">{letter}</span>
+      {letter}
     </div>
   );
-}
-
-/**
- * Get Tailwind classes for cell based on clue type
- */
-function getColorClasses(clue?: ClueType): string {
-  switch (clue) {
-    case 'correct':
-      return 'bg-green-600 text-white border-green-600';
-    case 'present':
-      return 'bg-yellow-500 text-white border-yellow-500';
-    case 'absent':
-      return 'bg-gray-400 text-white border-gray-400';
-    default:
-      return 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200';
-  }
 }

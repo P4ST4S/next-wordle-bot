@@ -34,6 +34,7 @@ export interface UseWordleSolverResult {
   calculationTime: number;
 
   addGuess: (guess: GuessResult) => void;
+  cycleClue: (guessIndex: number, tileIndex: number) => void;
   reset: () => void;
   validateWord: (word: string) => { valid: boolean; error?: string };
   cancelCalculation: () => void;
@@ -45,6 +46,7 @@ export function useWordleSolver(dictionary: string[]): UseWordleSolverResult {
   const {
     guesses,
     addGuess: addGuessInternal,
+    cycleClue: cycleClueInternal,
     reset: resetInternal,
     isWon,
     isLostByAttempts,
@@ -91,6 +93,15 @@ export function useWordleSolver(dictionary: string[]): UseWordleSolverResult {
       });
     },
     [addGuessInternal]
+  );
+
+  const cycleClue = useCallback(
+    (guessIndex: number, tileIndex: number) => {
+      startTransition(() => {
+        cycleClueInternal(guessIndex, tileIndex);
+      });
+    },
+    [cycleClueInternal]
   );
 
   const reset = useCallback(() => {
@@ -158,6 +169,7 @@ export function useWordleSolver(dictionary: string[]): UseWordleSolverResult {
     calculationTime,
 
     addGuess,
+    cycleClue,
     reset,
     validateWord,
     cancelCalculation,

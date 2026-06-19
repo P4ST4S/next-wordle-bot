@@ -111,7 +111,7 @@ for the rare large-candidate case) usually never even shows.
 sequenceDiagram
     autonumber
     actor User
-    participant UI as ClueInput / SuggestionList
+    participant UI as AddMove / SuggestionList
     participant Hook as useWordleSolver
     participant Game as useGameState
     participant Worker as Web Worker
@@ -297,7 +297,7 @@ wrong?" Here is every degenerate state and how it is handled.
 | **First move (no guesses yet)** | `guesses.length === 0` | The worker is **not** called; a hard-coded list of strong openers is shown for instant time-to-interactive. |
 | **Contradictory clues → 0 candidates** | worker returns `remainingCount === 0` | The game is marked over (`isImpossible`) and the board shows *"No possible words found"* instead of a suggestion list. |
 | **Exactly one candidate left** | `solve` short-circuits at `remainingCount === 1` | That word is returned immediately with entropy 0 (no scoring pass needed). |
-| **Out of attempts (6 guesses, not solved)** | `isLostByAttempts` derived from `guesses` | The same derived `isOver` flag (§7) drives the UI: clue input is hidden and the game-over panel shows. No separate game-over state is stored. |
+| **Out of attempts (6 guesses, not solved)** | `isLostByAttempts` derived from `guesses` | The same derived `isOver` flag (§7) drives the UI: the add-a-move control is hidden and the game-over panel shows. No separate game-over state is stored. |
 | **No suggestions to display** | empty list reaches `SuggestionList` | Empty-state card: *"Add a guess to see optimal next words."* |
 | **Worker crashes / fails to init** | `worker.onerror`, or the constructor throws | The pending `solve` promise is **rejected** (`"Worker calculation failed"`), `isCalculating` resets, and the error is logged — the UI is not left stuck in a spinner. |
 | **Stale / superseded request** | generation counter in the worker + `cancelled` flag in the effect cleanup | The late reply is dropped; only the newest guess's result is applied (no flicker from out-of-order responses). |

@@ -44,8 +44,9 @@ in a Web Worker, so there is no backend and no network round-trip during a game.
 - **🧪 Tested core** — the solving pipeline is pure, shared between the worker and
   the test suite, and covered by Vitest (incl. an end-to-end "solve real words"
   golden test).
-- **🎨 Modern UI** — Tailwind CSS v4 + Radix primitives, fully responsive, dark
-  mode.
+- **🎨 Design-handoff UI** — a high-fidelity, light-themed interface (Libre
+  Franklin, exact Wordle tile palette) built on Tailwind CSS v4, with a clickable
+  board and an inline add-a-move flow.
 
 ## 🛠️ Tech Stack
 
@@ -123,7 +124,7 @@ Pipeline per turn (see [`lib/logic/solver.ts`](lib/logic/solver.ts)):
 ```
 ├── app/                # Next.js App Router (single client page + layout)
 ├── components/
-│   ├── solver/         # Board, clue input, suggestions, stats, controls
+│   ├── solver/         # Header, board, add-a-move, suggestions, stats
 │   └── ui/             # Reusable primitives (button, card, table, …)
 ├── hooks/              # useWordleSolver (orchestrator), useGameState, useWorker
 ├── lib/
@@ -155,7 +156,7 @@ so animations and input stay at a constant 60 fps even mid-calculation.
 flowchart LR
     subgraph MT["🖥️ Main thread — render only, never blocked → 60 fps"]
         direction TB
-        UI["React UI<br/>(board · clue input · suggestions)"]
+        UI["React UI<br/>(board · add-a-move · suggestions)"]
         ORCH["useWordleSolver<br/>orchestrator hook"]
         UI -->|"add guess (clues)"| ORCH
         ORCH -->|"derived state<br/>(suggestions, remaining, time)"| UI

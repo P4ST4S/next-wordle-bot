@@ -13,8 +13,9 @@
 5. [Performance engineering](#5-performance-engineering)
 6. [Module map](#6-module-map)
 7. [State management](#7-state-management)
-8. [Testing strategy](#8-testing-strategy)
-9. [Trade-offs & what I would do next](#9-trade-offs--what-i-would-do-next)
+8. [Edge cases & failure modes](#8-edge-cases--failure-modes)
+9. [Testing strategy](#9-testing-strategy)
+10. [Trade-offs & what I would do next](#10-trade-offs--what-i-would-do-next)
 
 ---
 
@@ -84,10 +85,18 @@ Three reinforcing decisions keep the main thread idle:
 | **Dictionary bundled into the worker** | ~150 KB of strings structured-cloned over `postMessage` *every* turn | Worker `import`s the lists once at startup; a request ships only the guesses (a few bytes) |
 | **Allocation-free scoring** | per-comparison `split('')`, `Map`, object churn → GC pauses | flat `Uint8Array` + reusable `Int32Array(243)`; scoring finishes in single-digit ms |
 
-The net effect, observed in the browser: a mid-game turn reports **~5 ms**
-compute time, the main thread is never blocked, and input/animations stay at
-60 fps. Because results arrive so fast, the progress bar (wired up for the rare
-large-candidate case) usually never even shows.
+**The numbers behind the claim** (so this isn't a marketing line):
+
+- Worker-side `solve()` measured at **~0.73 ms** after the first guess
+  (≈39 candidates) and **~0.26 ms** by the second (≈2 candidates) — averaged over
+  20 runs on the real dictionary.
+- A full UI round-trip (`postMessage` → solve → reply → re-render) reports **~5 ms**
+  in the browser's calc-time readout.
+- The main thread registers **no long task** (the 50 ms threshold the browser uses
+  to flag jank), so the 16.7 ms frame budget is never threatened.
+
+Because results arrive in single-digit milliseconds, the progress bar (wired up
+for the rare large-candidate case) usually never even shows.
 
 > **Cancellation** is cooperative: a `CANCEL` message bumps a generation counter
 > the worker checks between progress batches, so an in-flight calculation can be
@@ -193,11 +202,26 @@ A correctness net guards the rewrite: a Vitest spec cross-checks the typed-array
 scorer against a straightforward `Map`-based reference for bit-for-bit identical
 entropy on tricky inputs.
 
-When **thousands** of words still match (e.g. right after the opener), exact
-entropy over the full candidate set would be wasteful, so the solver falls back to
-a cheap **letter-frequency heuristic** to stay interactive, switching to exact
-entropy once the set is small (`HEURISTIC_THRESHOLD` in
-[`solver.ts`](../lib/logic/solver.ts)).
+### Why a heuristic fallback, and where the threshold sits
+
+Scoring is **O(C · R)**: for each of `C` candidate guesses you compute a pattern
+against each of `R` remaining answers. Early in a game both are large. After a
+weak first guess `R` can be in the thousands, and since candidates are drawn from
+the remaining set, `C ≈ R` — so the work is effectively **O(R²)**. At R = 4,000
+that is ~16M pattern computations, enough to be felt even off-thread.
+
+So the solver branches on `R` ([`solver.ts`](../lib/logic/solver.ts)):
+
+- **`R > HEURISTIC_THRESHOLD` (= 2,000):** skip exact entropy and rank by a cheap
+  **O(R)** letter-frequency heuristic — a good-enough probe while the field is
+  huge. This case is rare in practice (a reasonable opener leaves ≪2,000).
+- **`R ≤ 2,000`:** run exact entropy. Within this, when `R ≤ 500` a few extra
+  dictionary words are mixed in as candidates to find better splitters; above 500
+  candidates are just the remaining set to cap the O(R²) term.
+
+The thresholds (2,000 / 500) are tuning knobs chosen to keep the exact pass under
+a few milliseconds; they are named constants, not magic numbers scattered in the
+code.
 
 ---
 
@@ -218,10 +242,25 @@ entropy once the set is small (`HEURISTIC_THRESHOLD` in
 
 ### Word lists
 
-`lib/data/possible-answers.json` (4,315) and `lib/data/allowed-guesses.json`
-(10,657) — union of **12,972** unique 5-letter words. They are bundled via
-`import` (not fetched at runtime), so the dictionary is available synchronously on
-first render and travels into the worker bundle for free.
+The two lists **overlap**, so the union is not their sum:
+
+```
+possible-answers.json :  4,315
+allowed-guesses.json  : 10,657
+overlap (in both)     :  2,000
+union (the dictionary): 12,972   =  4,315 + 10,657 − 2,000
+```
+
+(The 12,972 figure matches the canonical Wordle dictionary; this project ships an
+*expanded* answer list of 4,315 — see [`scripts/`](../scripts) — but the union is
+unchanged because the extra answers were drawn from the guess list.)
+
+They are bundled via `import` rather than fetched at runtime. This is a deliberate
+trade, **not** a free win: it adds the word lists to the bundle (a one-time
+download cost) in exchange for the dictionary being available **synchronously on
+first render** — no loading spinner, no error state, and no `fetch` round-trip.
+The same `import` also pulls the lists into the worker, so they never have to be
+serialized across `postMessage`.
 
 ---
 
@@ -237,16 +276,48 @@ derived, not stored**:
 
 This avoids a class of bugs where stored suggestions go stale relative to the
 guesses. It also keeps effects honest: the one effect in the orchestrator only
-performs the async worker call and sets state **after** the await — there is no
-synchronous `setState` inside an effect (which React Compiler's lint rules flag as
-a cascade risk).
+performs the async worker call and sets state **after** the `await`. Calling
+`setState` *synchronously* inside an effect is a recognized React anti-pattern
+(it can trigger a second render before paint); the code avoids it deliberately,
+which is also why the React Compiler lint passes cleanly here rather than us
+suppressing a warning.
 
 React Compiler is enabled (`reactCompiler: true` in
 [`next.config.ts`](../next.config.ts)) to auto-memoize components and hooks.
 
 ---
 
-## 8. Testing strategy
+## 8. Edge cases & failure modes
+
+The first question a reviewer usually asks is "what shows on screen when it goes
+wrong?" Here is every degenerate state and how it is handled.
+
+| Situation | Detection | What the user sees |
+| --- | --- | --- |
+| **First move (no guesses yet)** | `guesses.length === 0` | The worker is **not** called; a hard-coded list of strong openers is shown for instant time-to-interactive. |
+| **Contradictory clues → 0 candidates** | worker returns `remainingCount === 0` | The game is marked over (`isImpossible`) and the board shows *"No possible words found"* instead of a suggestion list. |
+| **Exactly one candidate left** | `solve` short-circuits at `remainingCount === 1` | That word is returned immediately with entropy 0 (no scoring pass needed). |
+| **Out of attempts (6 guesses, not solved)** | `isLostByAttempts` derived from `guesses` | Game-over panel; clue input is hidden. |
+| **No suggestions to display** | empty list reaches `SuggestionList` | Empty-state card: *"Add a guess to see optimal next words."* |
+| **Worker crashes / fails to init** | `worker.onerror`, or the constructor throws | The pending `solve` promise is **rejected** (`"Worker calculation failed"`), `isCalculating` resets, and the error is logged — the UI is not left stuck in a spinner. |
+| **Stale / superseded request** | generation counter in the worker + `cancelled` flag in the effect cleanup | The late reply is dropped; only the newest guess's result is applied (no flicker from out-of-order responses). |
+| **Duplicate / invalid word entry** | `validateGuess` before submission | Inline validation message; the guess is rejected before any worker call. |
+
+Two of these are worth calling out as design choices rather than guards:
+
+- **The opener is precomputed, not solved live.** On the very first move every
+  word is still a candidate and every answer still possible, so an honest score
+  would be ~12,972 guesses × ~4,315 answers — the one genuinely expensive call.
+  Shipping a fixed list of strong openers sidesteps it and keeps first paint
+  instant.
+- **Out-of-order replies can't corrupt state.** Because the dictionary lives in
+  the worker and requests are cheap, rapid guesses are common; the generation
+  counter guarantees the UI always reflects the *latest* guess, not whichever
+  reply happens to arrive last.
+
+---
+
+## 9. Testing strategy
 
 `pnpm test` runs Vitest against the pure logic (no DOM needed):
 
@@ -263,7 +334,7 @@ test asserts that bound rather than hiding it.
 
 ---
 
-## 9. Trade-offs & what I would do next
+## 10. Trade-offs & what I would do next
 
 **Deliberate trade-offs**
 

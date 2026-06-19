@@ -15,16 +15,16 @@ const LOGO_SQUARES = [
 export function Header() {
   return (
     <header className="mx-auto flex max-w-290 items-center justify-between border-b border-border px-10 py-4.5">
-      <div className="flex items-center gap-[13px]">
+      <div className="flex items-center gap-3.25">
         <div className="grid grid-cols-2 grid-rows-2 gap-0.5">
           {LOGO_SQUARES.map((cls, i) => (
-            <div key={i} className={`size-3 rounded-[2px] ${cls}`} />
+            <div key={i} className={`size-3 rounded-xs ${cls}`} />
           ))}
         </div>
         <span className="text-[21px] font-extrabold tracking-[-0.4px] text-ink">
           Wordle Solver
         </span>
-        <span className="rounded-[20px] bg-muted px-[9px] py-[3px] text-xs font-semibold text-ink-muted">
+        <span className="rounded-[20px] bg-muted px-2.25 py-0.75 text-xs font-semibold text-ink-muted">
           Shannon entropy
         </span>
       </div>
@@ -33,7 +33,7 @@ export function Header() {
         href="https://github.com/P4ST4S"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-[9px] rounded-[10px] border border-input/70 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:border-wordle-empty-border hover:bg-surface-row"
+        className="flex items-center gap-2.25 rounded-[10px] border border-input/70 px-3.5 py-2 text-sm font-semibold text-ink transition-colors hover:border-wordle-empty-border hover:bg-surface-row"
       >
         <svg
           width="19"

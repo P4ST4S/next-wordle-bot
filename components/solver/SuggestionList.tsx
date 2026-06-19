@@ -53,7 +53,7 @@ export function SuggestionList({
       <h2 className="text-[17px] font-extrabold tracking-[-0.3px] text-ink">
         {showingOptimalOpeners ? 'Optimal Opening Moves' : 'Top Suggestions'}
       </h2>
-      <p className="mb-5 mt-[7px] text-[13.5px] leading-[1.5] text-ink-muted">
+      <p className="mb-5 mt-1.75 text-[13.5px] leading-[1.5] text-ink-muted">
         Ranked by expected information gain — each candidate is simulated against
         all remaining answers to maximize the bits of entropy resolved.
       </p>
@@ -65,7 +65,7 @@ export function SuggestionList({
           No suggestions available. Add a guess to see optimal next words.
         </p>
       ) : (
-        <div className={cn('flex flex-col gap-[7px]', className)}>
+        <div className={cn('flex flex-col gap-1.75', className)}>
           {visible.map((suggestion, index) => (
             <CandidateRow
               key={suggestion.word}
@@ -94,7 +94,7 @@ function CandidateRow({
   barWidth: string | null;
 }) {
   return (
-    <div className="relative flex items-center gap-[15px] overflow-hidden rounded-[10px] bg-surface-row px-[15px] py-[11px]">
+    <div className="relative flex items-center gap-3.75 overflow-hidden rounded-[10px] bg-surface-row px-3.75 py-2.75">
       {barWidth !== null && (
         <div
           aria-hidden
@@ -110,7 +110,7 @@ function CandidateRow({
       </span>
       <span className="relative ml-auto text-[14px] font-bold tabular-nums text-wordle-correct">
         {suggestion.entropy.toFixed(2)}
-        <span className="ml-[3px] text-[11px] font-semibold text-wordle-correct/60">
+        <span className="ml-0.75 text-[11px] font-semibold text-wordle-correct/60">
           bits
         </span>
       </span>
@@ -120,7 +120,7 @@ function CandidateRow({
 
 function CalculatingRows() {
   return (
-    <div className="flex flex-col gap-[7px]" aria-busy="true">
+    <div className="flex flex-col gap-1.75" aria-busy="true">
       {Array.from({ length: 5 }, (_, i) => (
         <div
           key={i}

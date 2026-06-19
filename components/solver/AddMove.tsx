@@ -112,7 +112,7 @@ export function AddMove({ onSubmit, validateWord, disabled }: AddMoveProps) {
         spellCheck={false}
         aria-label="Add a 5-letter guess"
         className={cn(
-          'w-full box-border rounded-[10px] border-[1.5px] border-input px-[15px] py-3',
+          'w-full box-border rounded-[10px] border-[1.5px] border-input px-3.75 py-3',
           'text-[17px] font-semibold uppercase tracking-[4px] text-ink',
           'transition-colors outline-none focus:border-wordle-correct',
           'disabled:cursor-not-allowed disabled:opacity-50'
@@ -120,7 +120,7 @@ export function AddMove({ onSubmit, validateWord, disabled }: AddMoveProps) {
       />
 
       {showPreview && (
-        <div className="mt-3.5 flex flex-col gap-[11px]">
+        <div className="mt-3.5 flex flex-col gap-2.75">
           <div className="flex gap-1.5">
             {input.split('').map((letter, index) => (
               <button
@@ -158,7 +158,7 @@ export function AddMove({ onSubmit, validateWord, disabled }: AddMoveProps) {
             onClick={submit}
             disabled={disabled}
             className={cn(
-              'w-full box-border rounded-[10px] bg-wordle-correct py-[13px]',
+              'w-full box-border rounded-[10px] bg-wordle-correct py-3.25',
               'text-[15px] font-bold text-white transition-colors',
               'hover:bg-wordle-correct-hover',
               'disabled:cursor-not-allowed disabled:opacity-50'

@@ -14,6 +14,12 @@
 ![React](https://img.shields.io/badge/React-19.2-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)
 
+## 🎬 Demo
+
+![Wordle Solver demo](assets/demo.gif)
+
+> Recorded against **Wordle #1826** (June 19, 2026).
+
 ## 📖 About
 
 Enter the guesses you have already played and the colors Wordle gave back; the

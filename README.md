@@ -21,9 +21,9 @@ solver replies with a ranked list of next words. Each suggestion shows its
 **Shannon entropy** (how much it is expected to narrow the search) and the
 **expected number of words remaining** after playing it.
 
-The whole thing runs client-side: the word lists are bundled into the app and all
-scoring happens in a Web Worker, so there is no backend and no network round-trip
-during a game.
+The whole thing runs client-side: the word lists (a 12,972-word dictionary,
+referred to as "~13k" throughout) are bundled into the app and all scoring happens
+in a Web Worker, so there is no backend and no network round-trip during a game.
 
 ## ✨ Key Features
 
